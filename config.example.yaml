@@ -1,0 +1,38 @@
+# Qualitarr Configuration
+
+# Radarr configuration
+radarr:
+  url: "http://localhost:7878"
+  apiKey: "your-radarr-api-key"
+
+# Sonarr configuration (coming soon)
+# sonarr:
+#   url: "http://localhost:8989"
+#   apiKey: "your-sonarr-api-key"
+
+# Discord webhook notifications
+discord:
+  enabled: true
+  webhookUrl: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+
+# Tag settings
+tag:
+  enabled: true
+  successTag: "check_ok"       # Applied when score matches expected
+  mismatchTag: "quality-mismatch"  # Applied when score differs
+
+# Quality settings
+quality:
+  # Tolerance percentage for score differences (0 = exact match required)
+  tolerancePercent: 0
+
+# Batch mode settings
+batch:
+  # Maximum concurrent downloads in the download queue
+  maxConcurrentDownloads: 3
+  # Delay between triggering searches (seconds)
+  searchIntervalSeconds: 30
+  # Interval to check download progress (seconds)
+  downloadCheckIntervalSeconds: 10
+  # Timeout for downloads (minutes)
+  downloadTimeoutMinutes: 60

@@ -1,0 +1,44 @@
+{
+  "name": "qualitarr",
+  "version": "0.1.0",
+  "description": "Monitor and compare expected vs actual quality scores for Radarr/Sonarr downloads",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "qualitarr": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/"
+  },
+  "keywords": [
+    "radarr",
+    "sonarr",
+    "quality",
+    "monitoring",
+    "media",
+    "arr"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "yaml": "^2.8.2",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^25.0.3",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.1"
+  }
+}
