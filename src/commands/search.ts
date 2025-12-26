@@ -31,35 +31,6 @@ export async function searchCommand(
   const movie = await radarr.getMovie(movieId);
   logger.info(`Found movie: ${movie.title} (${movie.year})`);
 
-  // Get available releases to find expected score
-  logger.info("Fetching available releases...");
-  const releases = await radarr.getReleases(movieId);
-
-  if (releases.length === 0) {
-    logger.warn("No releases found for this movie");
-    return null;
-  }
-
-  // Find the best release (highest custom format score)
-  const sortedReleases = releases
-    .filter((r) => r.rejections.length === 0)
-    .sort((a, b) => b.customFormatScore - a.customFormatScore);
-
-  if (sortedReleases.length === 0) {
-    logger.warn("No acceptable releases found (all rejected)");
-    return null;
-  }
-
-  const bestRelease = sortedReleases[0];
-  if (!bestRelease) {
-    logger.warn("No best release found");
-    return null;
-  }
-
-  const expectedScore = bestRelease.customFormatScore;
-  logger.info(`Best available release score: ${expectedScore}`);
-  logger.debug(`Best release: ${bestRelease.title}`);
-
   // Trigger search
   logger.info("Triggering movie search...");
   const command = await radarr.searchMovie(movieId);
@@ -70,14 +41,34 @@ export async function searchCommand(
   await radarr.waitForCommand(command.id);
   logger.info("Search completed");
 
-  // Poll queue until download completes
-  logger.info("Monitoring download queue...");
-  const actualScore = await waitForDownloadAndGetScore(radarr, movieId);
+  // Wait for grabbed event
+  logger.info("Waiting for grab...");
+  const grabbed = await waitForHistoryEvent(radarr, movieId, "grabbed");
 
-  if (actualScore === null) {
-    logger.warn("Download did not complete or was not found in queue");
+  if (!grabbed) {
+    logger.warn("No grab detected, movie may not have been found");
     return null;
   }
+
+  const expectedScore = grabbed.customFormatScore;
+  logger.info(`Grabbed: ${grabbed.sourceTitle} (score: ${expectedScore})`);
+
+  // Wait for import
+  logger.info("Waiting for download and import...");
+  const imported = await waitForHistoryEvent(
+    radarr,
+    movieId,
+    "downloadFolderImported",
+    3600000 // 1 hour timeout for download
+  );
+
+  if (!imported) {
+    logger.warn("Download did not complete or import failed");
+    return null;
+  }
+
+  const actualScore = imported.customFormatScore;
+  logger.info(`Imported: ${imported.sourceTitle} (score: ${actualScore})`);
 
   // Calculate difference
   const difference = actualScore - expectedScore;
@@ -129,54 +120,35 @@ export async function searchCommand(
       actualScore,
       difference,
       tolerancePercent,
-      quality: bestRelease.quality.quality.name,
-      indexer: bestRelease.indexer,
+      quality: imported.quality.quality.name,
     });
   }
 
   return result;
 }
 
-async function waitForDownloadAndGetScore(
+async function waitForHistoryEvent(
   radarr: RadarrService,
   movieId: number,
-  timeoutMs = 3600000, // 1 hour
-  pollIntervalMs = 10000 // 10 seconds
-): Promise<number | null> {
+  eventType: string,
+  timeoutMs = 60000,
+  pollIntervalMs = 5000
+): Promise<{ sourceTitle: string; customFormatScore: number; quality: { quality: { name: string } } } | null> {
   const startTime = Date.now();
+  const initialHistory = await radarr.getHistory(movieId);
+  const initialEventIds = new Set(initialHistory.map((h) => h.id));
 
   while (Date.now() - startTime < timeoutMs) {
-    const queue = await radarr.getQueue();
-    const item = queue.records.find((r) => r.movieId === movieId);
-
-    if (item) {
-      logger.debug(
-        `Download progress: ${item.status} - ${Math.round(((item.size - item.sizeleft) / item.size) * 100)}%`
-      );
-
-      if (
-        item.trackedDownloadState === "importPending" ||
-        item.trackedDownloadState === "imported"
-      ) {
-        logger.info("Download completed, checking imported score...");
-        return item.customFormatScore;
-      }
-
-      if (item.trackedDownloadStatus === "warning") {
-        logger.warn(`Download warning: ${item.status}`);
-      }
-    } else {
-      // Item not in queue, check history
-      const history = await radarr.getHistory(movieId);
-      const imported = history.find((h) => h.eventType === "downloadFolderImported");
-
-      if (imported) {
-        logger.info("Found imported file in history");
-        return imported.customFormatScore;
-      }
-    }
-
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+
+    const history = await radarr.getHistory(movieId);
+    const newEvent = history.find(
+      (h) => h.eventType === eventType && !initialEventIds.has(h.id)
+    );
+
+    if (newEvent) {
+      return newEvent;
+    }
   }
 
   return null;

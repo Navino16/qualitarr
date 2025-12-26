@@ -19,48 +19,38 @@ export async function importCommand(
   // Get movie details
   const movie = await radarr.getMovie(envVars.movieId);
 
-  // Get history to find the imported file score
+  // Get history to find grabbed and imported events
   const history = await radarr.getHistory(envVars.movieId);
+
+  // Find the most recent grabbed event (expected score)
+  const grabbed = history.find((h) => h.eventType === "grabbed");
+
+  // Find the most recent imported event (actual score)
   const imported = history.find((h) => h.eventType === "downloadFolderImported");
 
+  if (!grabbed) {
+    logger.warn("Could not find grabbed event in history, skipping");
+    return;
+  }
+
   if (!imported) {
-    logger.warn("Could not find imported file in history, skipping");
+    logger.warn("Could not find imported event in history, skipping");
     return;
   }
 
+  const expectedScore = grabbed.customFormatScore;
   const actualScore = imported.customFormatScore;
-
-  // Get releases to find expected score
-  const releases = await radarr.getReleases(envVars.movieId);
-  const acceptableReleases = releases.filter((r) => r.rejections.length === 0);
-
-  if (acceptableReleases.length === 0) {
-    logger.warn("No acceptable releases found, cannot determine expected score");
-    // Apply success tag since we can't compare
-    if (config.tag.enabled) {
-      const tag = await radarr.getOrCreateTag(config.tag.successTag);
-      await radarr.addTagToMovie(movie, tag.id);
-    }
-    return;
-  }
-
-  const bestRelease = acceptableReleases.sort(
-    (a, b) => b.customFormatScore - a.customFormatScore
-  )[0];
-
-  if (!bestRelease) {
-    return;
-  }
-
-  const expectedScore = bestRelease.customFormatScore;
   const difference = actualScore - expectedScore;
+
   const toleranceValue =
     config.quality.tolerancePercent > 0
       ? (expectedScore * config.quality.tolerancePercent) / 100
       : 0;
   const withinTolerance = Math.abs(difference) <= toleranceValue;
 
-  logger.info(`Expected: ${expectedScore}, Actual: ${actualScore}, Diff: ${difference}`);
+  logger.info(`Grabbed score: ${expectedScore} (${grabbed.sourceTitle})`);
+  logger.info(`Imported score: ${actualScore} (${imported.sourceTitle})`);
+  logger.info(`Difference: ${difference}`);
 
   if (withinTolerance && difference === 0) {
     // Perfect match
@@ -86,8 +76,7 @@ export async function importCommand(
       actualScore,
       difference,
       tolerancePercent: config.quality.tolerancePercent,
-      quality: bestRelease.quality.quality.name,
-      indexer: bestRelease.indexer,
+      quality: imported.quality.quality.name,
     });
   }
 }

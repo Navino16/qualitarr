@@ -1,5 +1,5 @@
 import type { Config, BatchConfig } from "../types/index.js";
-import type { RadarrMovie, RadarrRelease } from "../types/radarr.js";
+import type { RadarrMovie, RadarrHistory } from "../types/radarr.js";
 import { RadarrService } from "./radarr.js";
 import { DiscordService } from "./discord.js";
 import { logger } from "../utils/index.js";
@@ -8,9 +8,10 @@ export interface QueueItem {
   id: number;
   title: string;
   year: number;
-  expectedScore: number;
-  bestRelease: RadarrRelease;
   status: "pending" | "searching" | "downloading" | "completed" | "failed";
+  grabbedEvent?: RadarrHistory;
+  importedEvent?: RadarrHistory;
+  initialHistoryIds: Set<number>;
   error?: string;
   startedAt?: Date;
 }
@@ -18,6 +19,7 @@ export interface QueueItem {
 export class QueueManager {
   private searchQueue: QueueItem[] = [];
   private downloadQueue: QueueItem[] = [];
+  private completedItems: QueueItem[] = [];
   private config: Config;
   private batchConfig: BatchConfig;
   private radarr: RadarrService;
@@ -70,34 +72,20 @@ export class QueueManager {
   }
 
   private async addToSearchQueue(movie: RadarrMovie): Promise<void> {
-    // Get releases to find expected score
-    const releases = await this.radarr.getReleases(movie.id);
-    const acceptableReleases = releases.filter((r) => r.rejections.length === 0);
-
-    if (acceptableReleases.length === 0) {
-      logger.debug(`No acceptable releases for ${movie.title}, skipping`);
-      return;
-    }
-
-    const bestRelease = acceptableReleases.sort(
-      (a, b) => b.customFormatScore - a.customFormatScore
-    )[0];
-
-    if (!bestRelease) {
-      return;
-    }
+    // Get current history to track new events later
+    const history = await this.radarr.getHistory(movie.id);
+    const initialHistoryIds = new Set(history.map((h) => h.id));
 
     const item: QueueItem = {
       id: movie.id,
       title: movie.title,
       year: movie.year,
-      expectedScore: bestRelease.customFormatScore,
-      bestRelease,
       status: "pending",
+      initialHistoryIds,
     };
 
     this.searchQueue.push(item);
-    logger.debug(`Added ${movie.title} to search queue (expected score: ${bestRelease.customFormatScore})`);
+    logger.debug(`Added ${movie.title} to search queue`);
   }
 
   async run(): Promise<void> {
@@ -146,6 +134,7 @@ export class QueueManager {
         item.status = "failed";
         item.error = error instanceof Error ? error.message : String(error);
         logger.error(`Failed to search ${item.title}: ${item.error}`);
+        this.completedItems.push(item);
       }
 
       // Wait before next search
@@ -163,11 +152,48 @@ export class QueueManager {
     const command = await this.radarr.searchMovie(item.id);
     await this.radarr.waitForCommand(command.id, 60000); // 1 min timeout for search
 
+    // Wait for grabbed event
+    const grabbed = await this.waitForNewHistoryEvent(item, "grabbed", 30000);
+
+    if (!grabbed) {
+      logger.warn(`No grab for ${item.title}, no releases found or all rejected`);
+      item.status = "failed";
+      item.error = "No releases grabbed";
+      this.completedItems.push(item);
+      return;
+    }
+
+    item.grabbedEvent = grabbed;
     item.status = "downloading";
     item.startedAt = new Date();
     this.downloadQueue.push(item);
 
-    logger.info(`Search completed for ${item.title}, moved to download queue`);
+    logger.info(`Grabbed ${item.title} (score: ${grabbed.customFormatScore}), moved to download queue`);
+  }
+
+  private async waitForNewHistoryEvent(
+    item: QueueItem,
+    eventType: string,
+    timeoutMs: number
+  ): Promise<RadarrHistory | null> {
+    const startTime = Date.now();
+    const pollInterval = 3000;
+
+    while (Date.now() - startTime < timeoutMs) {
+      const history = await this.radarr.getHistory(item.id);
+      const newEvent = history.find(
+        (h) => h.eventType === eventType && !item.initialHistoryIds.has(h.id)
+      );
+
+      if (newEvent) {
+        item.initialHistoryIds.add(newEvent.id);
+        return newEvent;
+      }
+
+      await this.sleep(pollInterval);
+    }
+
+    return null;
   }
 
   private async monitorDownloads(): Promise<void> {
@@ -178,20 +204,24 @@ export class QueueManager {
         if (item.status !== "downloading") continue;
 
         try {
-          const completed = await this.checkDownloadComplete(item);
-          if (completed) {
+          const imported = await this.checkForImport(item);
+
+          if (imported) {
+            item.importedEvent = imported;
             await this.processCompletedDownload(item);
           } else if (this.isTimedOut(item, timeoutMs)) {
             item.status = "failed";
             item.error = "Download timed out";
             logger.warn(`Download timed out for ${item.title}`);
             this.removeFromDownloadQueue(item);
+            this.completedItems.push(item);
           }
         } catch (error) {
           item.status = "failed";
           item.error = error instanceof Error ? error.message : String(error);
           logger.error(`Error checking download for ${item.title}: ${item.error}`);
           this.removeFromDownloadQueue(item);
+          this.completedItems.push(item);
         }
       }
 
@@ -199,47 +229,35 @@ export class QueueManager {
     }
   }
 
-  private async checkDownloadComplete(item: QueueItem): Promise<boolean> {
-    const queue = await this.radarr.getQueue();
-    const queueItem = queue.records.find((r) => r.movieId === item.id);
-
-    if (queueItem) {
-      const progress = ((queueItem.size - queueItem.sizeleft) / queueItem.size) * 100;
-      logger.debug(`${item.title}: ${progress.toFixed(1)}% downloaded`);
-
-      return (
-        queueItem.trackedDownloadState === "importPending" ||
-        queueItem.trackedDownloadState === "imported"
-      );
-    }
-
-    // Not in queue, check history
+  private async checkForImport(item: QueueItem): Promise<RadarrHistory | null> {
     const history = await this.radarr.getHistory(item.id);
-    return history.some((h) => h.eventType === "downloadFolderImported");
+    return history.find(
+      (h) => h.eventType === "downloadFolderImported" && !item.initialHistoryIds.has(h.id)
+    ) ?? null;
   }
 
   private async processCompletedDownload(item: QueueItem): Promise<void> {
     logger.info(`Download completed for ${item.title}, checking score...`);
 
-    const history = await this.radarr.getHistory(item.id);
-    const imported = history.find((h) => h.eventType === "downloadFolderImported");
-
-    if (!imported) {
+    if (!item.grabbedEvent || !item.importedEvent) {
       item.status = "failed";
-      item.error = "Could not find imported file in history";
+      item.error = "Missing grabbed or imported event";
       this.removeFromDownloadQueue(item);
+      this.completedItems.push(item);
       return;
     }
 
-    const actualScore = imported.customFormatScore;
-    const difference = actualScore - item.expectedScore;
+    const expectedScore = item.grabbedEvent.customFormatScore;
+    const actualScore = item.importedEvent.customFormatScore;
+    const difference = actualScore - expectedScore;
+
     const toleranceValue =
       this.config.quality.tolerancePercent > 0
-        ? (item.expectedScore * this.config.quality.tolerancePercent) / 100
+        ? (expectedScore * this.config.quality.tolerancePercent) / 100
         : 0;
     const withinTolerance = Math.abs(difference) <= toleranceValue;
 
-    logger.info(`${item.title}: Expected=${item.expectedScore}, Actual=${actualScore}, Diff=${difference}`);
+    logger.info(`${item.title}: Grabbed=${expectedScore}, Imported=${actualScore}, Diff=${difference}`);
 
     const movie = await this.radarr.getMovie(item.id);
 
@@ -261,17 +279,17 @@ export class QueueManager {
       await this.discord.sendScoreMismatch({
         title: item.title,
         year: item.year,
-        expectedScore: item.expectedScore,
+        expectedScore,
         actualScore,
         difference,
         tolerancePercent: this.config.quality.tolerancePercent,
-        quality: item.bestRelease.quality.quality.name,
-        indexer: item.bestRelease.indexer,
+        quality: item.importedEvent.quality.quality.name,
       });
     }
 
     item.status = "completed";
     this.removeFromDownloadQueue(item);
+    this.completedItems.push(item);
   }
 
   private isTimedOut(item: QueueItem, timeoutMs: number): boolean {
@@ -294,13 +312,19 @@ export class QueueManager {
   }
 
   private printSummary(): void {
-    const allItems = [...this.searchQueue, ...this.downloadQueue];
-    const completed = allItems.filter((i) => i.status === "completed").length;
-    const failed = allItems.filter((i) => i.status === "failed").length;
+    const completed = this.completedItems.filter((i) => i.status === "completed").length;
+    const failed = this.completedItems.filter((i) => i.status === "failed").length;
 
     logger.info("=== Summary ===");
     logger.info(`Completed: ${completed}`);
     logger.info(`Failed: ${failed}`);
+
+    if (failed > 0) {
+      logger.info("Failed items:");
+      for (const item of this.completedItems.filter((i) => i.status === "failed")) {
+        logger.info(`  - ${item.title}: ${item.error}`);
+      }
+    }
   }
 
   private sleep(ms: number): Promise<void> {
