@@ -31,7 +31,5 @@ export async function loadConfig(configPath?: string): Promise<Config> {
     }
   }
 
-  throw new Error(
-    `Config file not found. Tried: ${pathsToTry.join(", ")}`
-  );
+  throw new Error(`Config file not found. Tried: ${pathsToTry.join(", ")}`);
 }

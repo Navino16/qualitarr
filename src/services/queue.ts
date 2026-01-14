@@ -2,7 +2,11 @@ import type { Config, BatchConfig } from "../types/index.js";
 import type { RadarrMovie, RadarrHistory } from "../types/radarr.js";
 import { RadarrService } from "./radarr.js";
 import { DiscordService } from "./discord.js";
-import { calculateScoreComparison, handleScoreResult, logDryRunResult } from "./score.js";
+import {
+  calculateScoreComparison,
+  handleScoreResult,
+  logDryRunResult,
+} from "./score.js";
 import { logger, findHistoryEvents } from "../utils/index.js";
 
 export interface QueueManagerOptions {
@@ -65,12 +69,13 @@ export class QueueManager {
 
     let eligibleMovies = movies.filter(
       (m) =>
-        m.monitored &&
-        !m.tags.some((tagId) => excludeTagIds.includes(tagId))
+        m.monitored && !m.tags.some((tagId) => excludeTagIds.includes(tagId))
     );
 
     if (limit && limit > 0) {
-      logger.info(`Limiting to ${limit} movies (${eligibleMovies.length} eligible)`);
+      logger.info(
+        `Limiting to ${limit} movies (${eligibleMovies.length} eligible)`
+      );
       eligibleMovies = eligibleMovies.slice(0, limit);
     }
 
@@ -191,7 +196,9 @@ export class QueueManager {
   private async processSearchQueue(): Promise<void> {
     while (this.searchQueue.length > 0 && this.isRunning) {
       // Wait if download queue is full
-      if (this.downloadQueue.length >= this.batchConfig.maxConcurrentDownloads) {
+      if (
+        this.downloadQueue.length >= this.batchConfig.maxConcurrentDownloads
+      ) {
         logger.debug(
           `Download queue full (${this.downloadQueue.length}/${this.batchConfig.maxConcurrentDownloads}), waiting...`
         );
@@ -213,7 +220,9 @@ export class QueueManager {
 
       // Wait before next search
       if (this.searchQueue.length > 0) {
-        logger.debug(`Waiting ${this.batchConfig.searchIntervalSeconds}s before next search...`);
+        logger.debug(
+          `Waiting ${this.batchConfig.searchIntervalSeconds}s before next search...`
+        );
         await this.sleep(this.batchConfig.searchIntervalSeconds * 1000);
       }
     }
@@ -231,7 +240,9 @@ export class QueueManager {
 
     if (!grabbed) {
       // No new grab - compare current file with last grabbed event from history
-      logger.info(`No new grab for ${item.title}, checking against previous grab...`);
+      logger.info(
+        `No new grab for ${item.title}, checking against previous grab...`
+      );
 
       const history = await this.radarr.getHistory(item.id);
       const { grabbed: lastGrabbed } = findHistoryEvents(history);
@@ -242,7 +253,9 @@ export class QueueManager {
         item.status = "completed";
 
         if (this.config.tag.enabled) {
-          const tag = await this.radarr.getOrCreateTag(this.config.tag.successTag);
+          const tag = await this.radarr.getOrCreateTag(
+            this.config.tag.successTag
+          );
           const movie = await this.radarr.getMovie(item.id);
           await this.radarr.addTagToMovie(movie, tag.id);
           logger.info(`Applied success tag: ${this.config.tag.successTag}`);
@@ -294,7 +307,9 @@ export class QueueManager {
     item.startedAt = new Date();
     this.downloadQueue.push(item);
 
-    logger.info(`Grabbed ${item.title} (score: ${grabbed.customFormatScore}), moved to download queue`);
+    logger.info(
+      `Grabbed ${item.title} (score: ${grabbed.customFormatScore}), moved to download queue`
+    );
   }
 
   private async waitForNewHistoryEvent(
@@ -344,7 +359,9 @@ export class QueueManager {
         } catch (error) {
           item.status = "failed";
           item.error = error instanceof Error ? error.message : String(error);
-          logger.error(`Error checking download for ${item.title}: ${item.error}`);
+          logger.error(
+            `Error checking download for ${item.title}: ${item.error}`
+          );
           this.removeFromDownloadQueue(item);
           this.completedItems.push(item);
         }
@@ -357,7 +374,9 @@ export class QueueManager {
   private async checkForImport(item: QueueItem): Promise<boolean> {
     const history = await this.radarr.getHistory(item.id);
     const importEvent = history.find(
-      (h) => h.eventType === "downloadFolderImported" && !item.initialHistoryIds.has(h.id)
+      (h) =>
+        h.eventType === "downloadFolderImported" &&
+        !item.initialHistoryIds.has(h.id)
     );
     return importEvent !== undefined;
   }
@@ -424,14 +443,20 @@ export class QueueManager {
 
   private async waitForDownloadsToComplete(): Promise<void> {
     while (this.downloadQueue.length > 0) {
-      logger.debug(`Waiting for ${this.downloadQueue.length} downloads to complete...`);
+      logger.debug(
+        `Waiting for ${this.downloadQueue.length} downloads to complete...`
+      );
       await this.sleep(5000);
     }
   }
 
   private printSummary(): void {
-    const completed = this.completedItems.filter((i) => i.status === "completed").length;
-    const failed = this.completedItems.filter((i) => i.status === "failed").length;
+    const completed = this.completedItems.filter(
+      (i) => i.status === "completed"
+    ).length;
+    const failed = this.completedItems.filter(
+      (i) => i.status === "failed"
+    ).length;
 
     logger.info("=== Summary ===");
     logger.info(`Completed: ${completed}`);
@@ -439,7 +464,9 @@ export class QueueManager {
 
     if (failed > 0) {
       logger.info("Failed items:");
-      for (const item of this.completedItems.filter((i) => i.status === "failed")) {
+      for (const item of this.completedItems.filter(
+        (i) => i.status === "failed"
+      )) {
         logger.info(`  - ${item.title}: ${item.error}`);
       }
     }

@@ -83,14 +83,16 @@ export class RadarrService {
   }
 
   async getMovieFile(movieId: number): Promise<RadarrMovieFile | null> {
-    const files = await this.request<RadarrMovieFile[]>(`/moviefile?movieId=${movieId}`);
+    const files = await this.request<RadarrMovieFile[]>(
+      `/moviefile?movieId=${movieId}`
+    );
     return files[0] ?? null;
   }
 
   async getHistory(movieId: number): Promise<RadarrHistory[]> {
-    const result = await this.request<{ records: RadarrHistory[] } | RadarrHistory[]>(
-      `/history/movie?movieId=${movieId}`
-    );
+    const result = await this.request<
+      { records: RadarrHistory[] } | RadarrHistory[]
+    >(`/history/movie?movieId=${movieId}`);
     // API can return { records: [...] } or directly [...]
     if (Array.isArray(result)) {
       return result;

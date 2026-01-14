@@ -14,13 +14,16 @@ import { logger } from "../utils/logger.js";
  * - Acceptable if the actual score is between (expectedScore - maxUnderScore) and (expectedScore + maxOverScore)
  * - Mismatch if the actual score is below minAllowedScore OR above maxAllowedScore
  */
-export function calculateScoreComparison(input: ScoreComparisonInput): ScoreComparisonResult {
+export function calculateScoreComparison(
+  input: ScoreComparisonInput
+): ScoreComparisonResult {
   const { expectedScore, actualScore, maxOverScore, maxUnderScore } = input;
 
   const difference = actualScore - expectedScore;
   const minAllowedScore = expectedScore - maxUnderScore;
   const maxAllowedScore = expectedScore + maxOverScore;
-  const isAcceptable = actualScore >= minAllowedScore && actualScore <= maxAllowedScore;
+  const isAcceptable =
+    actualScore >= minAllowedScore && actualScore <= maxAllowedScore;
 
   return {
     expectedScore,
@@ -115,7 +118,9 @@ export function logScoreComparison(
   logger.info(`${p}Expected score: ${comparison.expectedScore}`);
   logger.info(`${p}Actual score: ${comparison.actualScore}`);
   logger.info(`${p}Difference: ${comparison.difference}`);
-  logger.info(`${p}Allowed range: [${comparison.minAllowedScore}, ${comparison.maxAllowedScore}]`);
+  logger.info(
+    `${p}Allowed range: [${comparison.minAllowedScore}, ${comparison.maxAllowedScore}]`
+  );
 }
 
 /**

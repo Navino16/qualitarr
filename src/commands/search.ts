@@ -204,7 +204,9 @@ async function handleRealMode(
     };
   }
 
-  logger.info(`Grabbed: ${grabbed.sourceTitle} (score: ${grabbed.customFormatScore})`);
+  logger.info(
+    `Grabbed: ${grabbed.sourceTitle} (score: ${grabbed.customFormatScore})`
+  );
 
   // Wait for import
   logger.info("Waiting for download and import...");

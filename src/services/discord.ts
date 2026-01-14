@@ -23,7 +23,9 @@ export class DiscordService {
 
   async sendScoreMismatch(info: ScoreMismatchInfo): Promise<void> {
     if (!this.enabled || !this.webhookUrl) {
-      logger.debug("Discord notifications disabled or not configured, skipping");
+      logger.debug(
+        "Discord notifications disabled or not configured, skipping"
+      );
       return;
     }
 

@@ -14,8 +14,10 @@ export const HISTORY_EVENT_TYPES = {
  */
 export function findHistoryEvents(history: RadarrHistory[]): HistoryEventPair {
   return {
-    grabbed: history.find((h) => h.eventType === HISTORY_EVENT_TYPES.GRABBED) ?? null,
-    imported: history.find((h) => h.eventType === HISTORY_EVENT_TYPES.IMPORTED) ?? null,
+    grabbed:
+      history.find((h) => h.eventType === HISTORY_EVENT_TYPES.GRABBED) ?? null,
+    imported:
+      history.find((h) => h.eventType === HISTORY_EVENT_TYPES.IMPORTED) ?? null,
   };
 }
 
@@ -27,9 +29,11 @@ export function findNewHistoryEvent(
   eventType: string,
   initialEventIds: Set<number>
 ): RadarrHistory | null {
-  return history.find(
-    (h) => h.eventType === eventType && !initialEventIds.has(h.id)
-  ) ?? null;
+  return (
+    history.find(
+      (h) => h.eventType === eventType && !initialEventIds.has(h.id)
+    ) ?? null
+  );
 }
 
 /**
@@ -58,11 +62,7 @@ export async function waitForHistoryEvent(
   eventType: string,
   options: WaitForHistoryEventOptions = {}
 ): Promise<RadarrHistory | null> {
-  const {
-    timeoutMs = 60000,
-    pollIntervalMs = 5000,
-    initialEventIds,
-  } = options;
+  const { timeoutMs = 60000, pollIntervalMs = 5000, initialEventIds } = options;
 
   const startTime = Date.now();
 

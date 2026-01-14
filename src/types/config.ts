@@ -10,16 +10,15 @@ export const sonarrConfigSchema = z.object({
   apiKey: z.string().min(1, "Sonarr API key is required"),
 });
 
-export const discordConfigSchema = z.object({
-  enabled: z.boolean().default(false),
-  webhookUrl: z.string().optional(),
-}).refine(
-  (data) => !data.enabled || (data.enabled && data.webhookUrl),
-  {
+export const discordConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    webhookUrl: z.string().optional(),
+  })
+  .refine((data) => !data.enabled || (data.enabled && data.webhookUrl), {
     message: "Discord webhook URL is required when Discord is enabled",
     path: ["webhookUrl"],
-  }
-);
+  });
 
 export const tagConfigSchema = z.object({
   enabled: z.boolean().default(true),
@@ -39,28 +38,30 @@ export const batchConfigSchema = z.object({
   downloadTimeoutMinutes: z.number().min(5).max(1440).default(60),
 });
 
-export const configSchema = z.object({
-  radarr: radarrConfigSchema.optional(),
-  sonarr: sonarrConfigSchema.optional(),
-  discord: discordConfigSchema.default({ enabled: false }),
-  tag: tagConfigSchema.default({
-    enabled: true,
-    successTag: "check_ok",
-    mismatchTag: "quality-mismatch",
-  }),
-  quality: qualityConfigSchema.default({ maxOverScore: 100, maxUnderScore: 0 }),
-  batch: batchConfigSchema.default({
-    maxConcurrentDownloads: 3,
-    searchIntervalSeconds: 30,
-    downloadCheckIntervalSeconds: 10,
-    downloadTimeoutMinutes: 60,
-  }),
-}).refine(
-  (data) => data.radarr ?? data.sonarr,
-  {
+export const configSchema = z
+  .object({
+    radarr: radarrConfigSchema.optional(),
+    sonarr: sonarrConfigSchema.optional(),
+    discord: discordConfigSchema.default({ enabled: false }),
+    tag: tagConfigSchema.default({
+      enabled: true,
+      successTag: "check_ok",
+      mismatchTag: "quality-mismatch",
+    }),
+    quality: qualityConfigSchema.default({
+      maxOverScore: 100,
+      maxUnderScore: 0,
+    }),
+    batch: batchConfigSchema.default({
+      maxConcurrentDownloads: 3,
+      searchIntervalSeconds: 30,
+      downloadCheckIntervalSeconds: 10,
+      downloadTimeoutMinutes: 60,
+    }),
+  })
+  .refine((data) => data.radarr ?? data.sonarr, {
     message: "At least one of radarr or sonarr must be configured",
-  }
-);
+  });
 
 export type RadarrConfig = z.infer<typeof radarrConfigSchema>;
 export type SonarrConfig = z.infer<typeof sonarrConfigSchema>;

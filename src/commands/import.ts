@@ -1,6 +1,11 @@
 import type { Config } from "../types/index.js";
 import type { RadarrEnvVars } from "../utils/env.js";
-import { RadarrService, DiscordService, calculateScoreComparison, handleScoreResult } from "../services/index.js";
+import {
+  RadarrService,
+  DiscordService,
+  calculateScoreComparison,
+  handleScoreResult,
+} from "../services/index.js";
 import { logger, findHistoryEvents } from "../utils/index.js";
 
 export async function importCommand(
@@ -44,7 +49,9 @@ export async function importCommand(
     maxUnderScore: config.quality.maxUnderScore,
   });
 
-  logger.info(`Grabbed score: ${comparison.expectedScore} (${grabbed.sourceTitle})`);
+  logger.info(
+    `Grabbed score: ${comparison.expectedScore} (${grabbed.sourceTitle})`
+  );
   logger.info(`Current file score: ${comparison.actualScore}`);
   logger.info(`Difference: ${comparison.difference}`);
 

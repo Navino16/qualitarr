@@ -45,9 +45,14 @@ export interface ScoreResultContext {
  */
 export interface ScoreResultServices {
   radarr: {
-    getMovie(id: number): Promise<{ id: number; title: string; year: number; tags: number[] }>;
+    getMovie(
+      id: number
+    ): Promise<{ id: number; title: string; year: number; tags: number[] }>;
     getOrCreateTag(label: string): Promise<{ id: number; label: string }>;
-    addTagToMovie(movie: { id: number; tags: number[] }, tagId: number): Promise<unknown>;
+    addTagToMovie(
+      movie: { id: number; tags: number[] },
+      tagId: number
+    ): Promise<unknown>;
   };
   discord: {
     sendScoreMismatch(info: {

@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 
 import { parseArgs } from "node:util";
-import { loadConfig, logger, setLogLevel, parseArrEnv, isImportEvent } from "./utils/index.js";
+import {
+  loadConfig,
+  logger,
+  setLogLevel,
+  parseArrEnv,
+  isImportEvent,
+} from "./utils/index.js";
 import { searchCommand } from "./commands/search.js";
 import { batchCommand } from "./commands/batch.js";
 import { importCommand } from "./commands/import.js";
@@ -124,7 +130,9 @@ async function main(): Promise<void> {
       logger.info(`Detected ${envVars.type} event: ${envVars.eventType}`);
 
       if (!isImportEvent(envVars)) {
-        logger.debug(`Event type ${envVars.eventType} is not an import event, skipping`);
+        logger.debug(
+          `Event type ${envVars.eventType} is not an import event, skipping`
+        );
         process.exit(0);
       }
 
@@ -159,7 +167,10 @@ async function main(): Promise<void> {
     switch (command) {
       case "batch": {
         const limit = values.limit ? parseInt(values.limit, 10) : undefined;
-        await batchCommand(config, { dryRun, ...(limit !== undefined && { limit }) });
+        await batchCommand(config, {
+          dryRun,
+          ...(limit !== undefined && { limit }),
+        });
         break;
       }
 
