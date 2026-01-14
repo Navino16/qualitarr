@@ -37,6 +37,10 @@ cp config.example.yaml config.yaml
 radarr:
   url: "http://localhost:7878"
   apiKey: "your-radarr-api-key"
+  api:  # Optional API settings
+    timeoutMs: 30000      # Request timeout (default: 30000)
+    retryAttempts: 3      # Retry on failure (default: 3)
+    retryDelayMs: 1000    # Initial retry delay (default: 1000)
 
 # Discord webhook notifications
 discord:
