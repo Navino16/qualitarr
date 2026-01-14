@@ -114,7 +114,7 @@ async function main(): Promise<void> {
     setLogLevel("debug");
   }
 
-  const dryRun = values["dry-run"] ?? false;
+  const dryRun = values["dry-run"];
 
   if (dryRun) {
     logger.info("=== DRY RUN MODE - No changes will be made ===");
@@ -198,4 +198,4 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+void main();

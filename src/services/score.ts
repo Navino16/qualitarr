@@ -112,7 +112,7 @@ export async function handleScoreResult(
  */
 export function logScoreComparison(
   comparison: ScoreComparisonResult,
-  prefix: string = ""
+  prefix = ""
 ): void {
   const p = prefix ? `${prefix} ` : "";
   logger.info(`${p}Expected score: ${comparison.expectedScore}`);

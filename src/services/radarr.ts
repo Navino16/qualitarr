@@ -24,11 +24,17 @@ export class RadarrService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}/api/v3${endpoint}`;
-    const headers = {
+    const headers: Record<string, string> = {
       "X-Api-Key": this.apiKey,
       "Content-Type": "application/json",
-      ...options.headers,
     };
+    if (
+      options.headers &&
+      typeof options.headers === "object" &&
+      !Array.isArray(options.headers)
+    ) {
+      Object.assign(headers, options.headers);
+    }
 
     logger.debug(`Radarr API request: ${options.method ?? "GET"} ${endpoint}`);
 
@@ -97,7 +103,7 @@ export class RadarrService {
     if (Array.isArray(result)) {
       return result;
     }
-    return result.records ?? [];
+    return result.records;
   }
 
   async getTags(): Promise<RadarrTag[]> {

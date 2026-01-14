@@ -15,7 +15,7 @@ export const discordConfigSchema = z
     enabled: z.boolean().default(false),
     webhookUrl: z.string().optional(),
   })
-  .refine((data) => !data.enabled || (data.enabled && data.webhookUrl), {
+  .refine((data) => !data.enabled || data.webhookUrl, {
     message: "Discord webhook URL is required when Discord is enabled",
     path: ["webhookUrl"],
   });

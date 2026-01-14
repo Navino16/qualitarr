@@ -467,7 +467,7 @@ export class QueueManager {
       for (const item of this.completedItems.filter(
         (i) => i.status === "failed"
       )) {
-        logger.info(`  - ${item.title}: ${item.error}`);
+        logger.info(`  - ${item.title}: ${item.error ?? "Unknown error"}`);
       }
     }
   }
