@@ -1,3 +1,4 @@
+import type { z } from "zod/v4";
 import type {
   RadarrConfig,
   ApiConfig,
@@ -9,6 +10,15 @@ import type {
   RadarrTag,
   RadarrCommand,
 } from "../types/index.js";
+import {
+  radarrMovieSchema,
+  radarrMovieFileSchema,
+  radarrQueueItemSchema,
+  radarrReleaseSchema,
+  radarrHistorySchema,
+  radarrTagSchema,
+  radarrCommandSchema,
+} from "../types/radarr.js";
 import { logger } from "../utils/index.js";
 
 class RetryableError extends Error {
@@ -142,6 +152,43 @@ export class RadarrService {
     return response.json() as Promise<T>;
   }
 
+  private validateResponse<T>(
+    data: unknown,
+    schema: z.ZodType<T>,
+    endpoint: string
+  ): T {
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      logger.debug(`Validation error for ${endpoint}: ${result.error.message}`);
+      throw new Error(
+        `Invalid API response from ${endpoint}: ${result.error.message}`
+      );
+    }
+    return result.data;
+  }
+
+  private validateArrayResponse<T>(
+    data: unknown,
+    schema: z.ZodType<T>,
+    endpoint: string
+  ): T[] {
+    if (!Array.isArray(data)) {
+      throw new Error(`Expected array response from ${endpoint}`);
+    }
+    return data.map((item, index) => {
+      const result = schema.safeParse(item);
+      if (!result.success) {
+        logger.debug(
+          `Validation error for ${endpoint}[${index}]: ${result.error.message}`
+        );
+        throw new Error(
+          `Invalid API response from ${endpoint}[${index}]: ${result.error.message}`
+        );
+      }
+      return result.data;
+    });
+  }
+
   private calculateRetryDelay(attempt: number): number {
     // Exponential backoff: delay * 2^(attempt-1)
     return Math.min(
@@ -173,66 +220,87 @@ export class RadarrService {
   }
 
   async getMovies(): Promise<RadarrMovie[]> {
-    return this.request<RadarrMovie[]>("/movie");
+    const data = await this.request<unknown>("/movie");
+    return this.validateArrayResponse(data, radarrMovieSchema, "/movie");
   }
 
   async getMovie(id: number): Promise<RadarrMovie> {
-    return this.request<RadarrMovie>(`/movie/${id}`);
+    const endpoint = `/movie/${id}`;
+    const data = await this.request<unknown>(endpoint);
+    return this.validateResponse(data, radarrMovieSchema, endpoint);
   }
 
   async getMovieByTmdbId(tmdbId: number): Promise<RadarrMovie | null> {
     const endpoint = this.buildEndpoint("/movie", { tmdbId });
-    const movies = await this.request<RadarrMovie[]>(endpoint);
+    const data = await this.request<unknown>(endpoint);
+    const movies = this.validateArrayResponse(
+      data,
+      radarrMovieSchema,
+      endpoint
+    );
     return movies[0] ?? null;
   }
 
   async searchMovie(movieId: number): Promise<RadarrCommand> {
-    return this.request<RadarrCommand>("/command", {
+    const data = await this.request<unknown>("/command", {
       method: "POST",
       body: JSON.stringify({
         name: "MoviesSearch",
         movieIds: [movieId],
       }),
     });
+    return this.validateResponse(data, radarrCommandSchema, "/command");
   }
 
   async getQueue(): Promise<{ records: RadarrQueueItem[] }> {
     const endpoint = this.buildEndpoint("/queue", { includeMovie: true });
-    return this.request<{ records: RadarrQueueItem[] }>(endpoint);
+    const data = await this.request<{ records: unknown[] }>(endpoint);
+    const records = this.validateArrayResponse(
+      data.records,
+      radarrQueueItemSchema,
+      endpoint
+    );
+    return { records };
   }
 
   async getReleases(movieId: number): Promise<RadarrRelease[]> {
     const endpoint = this.buildEndpoint("/release", { movieId });
-    return this.request<RadarrRelease[]>(endpoint);
+    const data = await this.request<unknown>(endpoint);
+    return this.validateArrayResponse(data, radarrReleaseSchema, endpoint);
   }
 
   async getMovieFile(movieId: number): Promise<RadarrMovieFile | null> {
     const endpoint = this.buildEndpoint("/moviefile", { movieId });
-    const files = await this.request<RadarrMovieFile[]>(endpoint);
+    const data = await this.request<unknown>(endpoint);
+    const files = this.validateArrayResponse(
+      data,
+      radarrMovieFileSchema,
+      endpoint
+    );
     return files[0] ?? null;
   }
 
   async getHistory(movieId: number): Promise<RadarrHistory[]> {
     const endpoint = this.buildEndpoint("/history/movie", { movieId });
-    const result = await this.request<
-      { records: RadarrHistory[] } | RadarrHistory[]
-    >(endpoint);
+    const data = await this.request<{ records?: unknown[] } | unknown[]>(
+      endpoint
+    );
     // API can return { records: [...] } or directly [...]
-    if (Array.isArray(result)) {
-      return result;
-    }
-    return result.records;
+    const records = Array.isArray(data) ? data : (data.records ?? []);
+    return this.validateArrayResponse(records, radarrHistorySchema, endpoint);
   }
 
   async getTags(): Promise<RadarrTag[]> {
-    return this.request<RadarrTag[]>("/tag");
+    const data = await this.request<unknown>("/tag");
+    return this.validateArrayResponse(data, radarrTagSchema, "/tag");
   }
 
   async createTag(label: string): Promise<RadarrTag> {
-    return this.request<RadarrTag>("/tag", {
+    const data = await this.request<unknown>("/tag", {
       method: "POST",
       body: JSON.stringify({ label }),
     });
+    return this.validateResponse(data, radarrTagSchema, "/tag");
   }
 
   async addTagToMovie(movie: RadarrMovie, tagId: number): Promise<RadarrMovie> {
@@ -241,13 +309,15 @@ export class RadarrService {
       return movie;
     }
 
-    return this.request<RadarrMovie>(`/movie/${movie.id}`, {
+    const endpoint = `/movie/${movie.id}`;
+    const data = await this.request<unknown>(endpoint, {
       method: "PUT",
       body: JSON.stringify({
         ...movie,
         tags: [...movie.tags, tagId],
       }),
     });
+    return this.validateResponse(data, radarrMovieSchema, endpoint);
   }
 
   async getOrCreateTag(label: string): Promise<RadarrTag> {
@@ -265,7 +335,9 @@ export class RadarrService {
   }
 
   async getCommand(commandId: number): Promise<RadarrCommand> {
-    return this.request<RadarrCommand>(`/command/${commandId}`);
+    const endpoint = `/command/${commandId}`;
+    const data = await this.request<unknown>(endpoint);
+    return this.validateResponse(data, radarrCommandSchema, endpoint);
   }
 
   async waitForCommand(
