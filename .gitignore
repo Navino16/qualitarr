@@ -3,10 +3,10 @@ node_modules/
 
 # Build output
 dist/
+bin/
 
 # Config with secrets
-config.yaml
-config.yml
+/config.yaml
 
 # Environment
 .env
@@ -28,3 +28,4 @@ logs/
 
 # Test reports
 .reports/
+

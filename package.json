@@ -11,12 +11,23 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/cli.js",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "package": "pkg . && mv bin/qualitarr-linux-x64 bin/qualitarr-linux-amd64",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/"
+  },
+  "pkg": {
+    "targets": [
+      "node22-linux-x64",
+      "node22-linux-arm64",
+      "node22-macos-x64",
+      "node22-win-x64"
+    ],
+    "outputPath": "bin",
+    "assets": []
   },
   "keywords": [
     "radarr",
@@ -39,6 +50,7 @@
     "@eslint/js": "^9.39.2",
     "@types/node": "^25.0.3",
     "@vitest/coverage-v8": "^4.0.17",
+    "@yao-pkg/pkg": "^6.11.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.7.4",
