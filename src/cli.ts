@@ -20,6 +20,17 @@ const { values, positionals } = parseArgs({
       default: false,
       description: "Enable verbose logging",
     },
+    "dry-run": {
+      type: "boolean",
+      short: "n",
+      default: false,
+      description: "Dry run mode (no searches, no tags)",
+    },
+    limit: {
+      type: "string",
+      short: "l",
+      description: "Limit number of movies to process (batch mode)",
+    },
     help: {
       type: "boolean",
       short: "h",
@@ -45,11 +56,13 @@ Usage:
 Commands:
   (no command)         Auto-detect mode from Radarr/Sonarr environment variables
   batch                Process all movies without success tag (dual queue system)
-  search <movie-id>    Search for a specific movie and monitor quality
+  search <tmdb-id>     Search for a specific movie by TMDB ID and monitor quality
 
 Options:
   -c, --config <path>  Path to config file (default: ./config.yaml)
   -v, --verbose        Enable verbose logging
+  -n, --dry-run        Dry run mode (no searches, no tags, only logs)
+  -l, --limit <n>      Limit number of movies to process (batch mode)
   -h, --help           Show this help message
       --version        Show version
 
@@ -60,8 +73,11 @@ Examples:
   # Batch mode - process all unchecked movies:
   qualitarr batch
 
-  # Manual search for a specific movie:
-  qualitarr search 123
+  # Dry run batch mode (see what would happen):
+  qualitarr batch --dry-run
+
+  # Manual search for a specific movie (use TMDB ID from Radarr URL):
+  qualitarr search 550
 
 Configuration:
   Copy config.example.yaml to config.yaml and edit with your settings.
@@ -90,6 +106,12 @@ async function main(): Promise<void> {
 
   if (values.verbose) {
     setLogLevel("debug");
+  }
+
+  const dryRun = values["dry-run"] ?? false;
+
+  if (dryRun) {
+    logger.info("=== DRY RUN MODE - No changes will be made ===");
   }
 
   const command = positionals[0];
@@ -136,17 +158,18 @@ async function main(): Promise<void> {
 
     switch (command) {
       case "batch": {
-        await batchCommand(config);
+        const limit = values.limit ? parseInt(values.limit, 10) : undefined;
+        await batchCommand(config, { dryRun, ...(limit !== undefined && { limit }) });
         break;
       }
 
       case "search": {
-        const movieId = positionals[1];
-        if (!movieId) {
-          logger.error("Movie ID is required for search command");
+        const tmdbId = positionals[1];
+        if (!tmdbId) {
+          logger.error("TMDB ID is required for search command");
           process.exit(1);
         }
-        await searchCommand(config, parseInt(movieId, 10));
+        await searchCommand(config, parseInt(tmdbId, 10), { dryRun });
         break;
       }
 

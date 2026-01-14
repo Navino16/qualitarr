@@ -72,3 +72,13 @@ export interface RadarrCommand {
   started?: string;
   ended?: string;
 }
+
+export interface RadarrMovieFile {
+  id: number;
+  movieId: number;
+  relativePath: string;
+  path: string;
+  size: number;
+  quality: RadarrQuality;
+  customFormatScore: number;
+}

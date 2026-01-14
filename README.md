@@ -11,7 +11,7 @@ Qualitarr helps you ensure that the files grabbed by Radarr/Sonarr match the exp
 - **Score comparison**: Compare expected vs actual custom format scores
 - **Tagging**: Automatically tag movies based on score match/mismatch
 - **Discord notifications**: Get notified when score mismatches are detected
-- **Configurable tolerance**: Set a percentage threshold for acceptable score differences
+- **Configurable tolerance**: Score is acceptable if actual is between (expected - maxUnderScore) and (expected + maxOverScore)
 
 ## Installation
 
@@ -51,7 +51,8 @@ tag:
 
 # Quality settings
 quality:
-  tolerancePercent: 0  # 0 = exact match required
+  maxOverScore: 100   # Max allowed above expected
+  maxUnderScore: 0    # Max allowed below expected (0 = must be >= expected)
 
 # Batch mode settings
 batch:
@@ -71,7 +72,7 @@ batch:
 4. Save
 
 When a file is imported, Qualitarr will automatically:
-1. Compare the imported file's score with the best available release
+1. Compare the grabbed score with the imported score
 2. Apply the appropriate tag (`check_ok` or `quality-mismatch`)
 3. Send a Discord notification if there's a mismatch
 
@@ -95,10 +96,11 @@ The batch process:
 
 ### Manual Search
 
-Search for a specific movie by ID:
+Search for a specific movie by TMDB ID (visible in the Radarr URL):
 
 ```bash
-qualitarr search <movie-id>
+# TMDB ID is the number in the Radarr URL: /movie/550
+qualitarr search 550
 ```
 
 ## CLI Options
@@ -110,22 +112,27 @@ Usage:
 Commands:
   (no command)         Auto-detect mode from Radarr/Sonarr environment variables
   batch                Process all movies without success tag
-  search <movie-id>    Search for a specific movie and monitor quality
+  search <tmdb-id>     Search for a specific movie by TMDB ID
 
 Options:
   -c, --config <path>  Path to config file (default: ./config.yaml)
   -v, --verbose        Enable verbose logging
+  -n, --dry-run        Dry run mode (no searches, no tags, only logs)
   -h, --help           Show this help message
       --version        Show version
 ```
 
 ## How It Works
 
-1. **Get expected score**: Query available releases and find the highest custom format score among non-rejected releases
-2. **Trigger search**: Tell Radarr to search for the movie
-3. **Monitor download**: Track the download progress in the queue
-4. **Compare scores**: Once imported, compare the actual score with the expected score
-5. **Take action**: Apply tags and send notifications based on the result
+Qualitarr compares the **grabbed** score (what Radarr expected when it grabbed the release) with the **current file** score. This detects cases where the imported file doesn't match the expected custom format score.
+
+A score is considered **acceptable** if the actual score is between `expected - maxUnderScore` (default: 0) and `expected + maxOverScore` (default: 100). Scores outside this range are considered mismatches.
+
+1. **Trigger search**: Tell Radarr to search for the movie
+2. **Wait for grab**: Monitor for the grabbed event and record its custom format score
+3. **Wait for import**: Monitor for the file to be imported
+4. **Compare scores**: Compare grabbed score vs current file score
+5. **Take action**: Apply tags and send Discord notifications based on the result
 
 ## Requirements
 

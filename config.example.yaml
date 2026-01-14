@@ -23,8 +23,11 @@ tag:
 
 # Quality settings
 quality:
-  # Tolerance percentage for score differences (0 = exact match required)
-  tolerancePercent: 0
+  # Maximum allowed score above expected (default: 100)
+  maxOverScore: 100
+  # Maximum allowed score below expected (default: 0)
+  # Actual score must be between (expected - maxUnderScore) and (expected + maxOverScore)
+  maxUnderScore: 0
 
 # Batch mode settings
 batch:

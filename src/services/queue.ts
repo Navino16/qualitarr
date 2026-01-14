@@ -2,15 +2,20 @@ import type { Config, BatchConfig } from "../types/index.js";
 import type { RadarrMovie, RadarrHistory } from "../types/radarr.js";
 import { RadarrService } from "./radarr.js";
 import { DiscordService } from "./discord.js";
-import { logger } from "../utils/index.js";
+import { calculateScoreComparison, handleScoreResult, logDryRunResult } from "./score.js";
+import { logger, findHistoryEvents } from "../utils/index.js";
+
+export interface QueueManagerOptions {
+  dryRun?: boolean;
+}
 
 export interface QueueItem {
   id: number;
   title: string;
   year: number;
+  hasFile: boolean;
   status: "pending" | "searching" | "downloading" | "completed" | "failed";
   grabbedEvent?: RadarrHistory;
-  importedEvent?: RadarrHistory;
   initialHistoryIds: Set<number>;
   error?: string;
   startedAt?: Date;
@@ -25,8 +30,9 @@ export class QueueManager {
   private radarr: RadarrService;
   private discord: DiscordService;
   private isRunning = false;
+  private dryRun: boolean;
 
-  constructor(config: Config) {
+  constructor(config: Config, options: QueueManagerOptions = {}) {
     if (!config.radarr) {
       throw new Error("Radarr configuration is required");
     }
@@ -35,9 +41,10 @@ export class QueueManager {
     this.batchConfig = config.batch;
     this.radarr = new RadarrService(config.radarr);
     this.discord = new DiscordService(config.discord);
+    this.dryRun = options.dryRun ?? false;
   }
 
-  async loadMoviesWithoutTag(): Promise<number> {
+  async loadMoviesWithoutTag(limit?: number): Promise<number> {
     logger.info("Loading movies without success tag...");
 
     const [movies, tags] = await Promise.all([
@@ -56,13 +63,18 @@ export class QueueManager {
       (id): id is number => id !== undefined
     );
 
-    const eligibleMovies = movies.filter(
+    let eligibleMovies = movies.filter(
       (m) =>
         m.monitored &&
         !m.tags.some((tagId) => excludeTagIds.includes(tagId))
     );
 
-    logger.info(`Found ${eligibleMovies.length} movies to process`);
+    if (limit && limit > 0) {
+      logger.info(`Limiting to ${limit} movies (${eligibleMovies.length} eligible)`);
+      eligibleMovies = eligibleMovies.slice(0, limit);
+    }
+
+    logger.info(`Processing ${eligibleMovies.length} movies`);
 
     for (const movie of eligibleMovies) {
       await this.addToSearchQueue(movie);
@@ -80,6 +92,7 @@ export class QueueManager {
       id: movie.id,
       title: movie.title,
       year: movie.year,
+      hasFile: movie.hasFile,
       status: "pending",
       initialHistoryIds,
     };
@@ -97,21 +110,82 @@ export class QueueManager {
     this.isRunning = true;
     logger.info("Starting queue manager...");
 
-    // Start download monitor in background
-    const downloadMonitorPromise = this.monitorDownloads();
+    if (this.dryRun) {
+      await this.runDryMode();
+    } else {
+      // Start download monitor in background
+      const downloadMonitorPromise = this.monitorDownloads();
 
-    // Process search queue
-    await this.processSearchQueue();
+      // Process search queue
+      await this.processSearchQueue();
 
-    // Wait for all downloads to complete
-    await this.waitForDownloadsToComplete();
+      // Wait for all downloads to complete
+      await this.waitForDownloadsToComplete();
 
-    // Stop monitoring
-    this.isRunning = false;
-    await downloadMonitorPromise;
+      // Stop monitoring
+      this.isRunning = false;
+      await downloadMonitorPromise;
+    }
 
     logger.info("Queue manager finished");
     this.printSummary();
+  }
+
+  private async runDryMode(): Promise<void> {
+    logger.info("[DRY-RUN] Analyzing movies from search queue...");
+
+    for (const item of this.searchQueue) {
+      logger.info(`[DRY-RUN] Processing: ${item.title} (${item.year})`);
+
+      // Get grabbed event from history
+      const history = await this.radarr.getHistory(item.id);
+      const { grabbed } = findHistoryEvents(history);
+
+      if (!grabbed) {
+        logger.info(`[DRY-RUN]   No grabbed event found in history`);
+        logger.info(`[DRY-RUN]   Would trigger search and wait for download`);
+        item.status = "completed";
+        this.completedItems.push(item);
+        continue;
+      }
+
+      // Get current file score
+      if (!item.hasFile) {
+        logger.info(`[DRY-RUN]   Movie has no file yet`);
+        logger.info(`[DRY-RUN]   Would trigger search and wait for download`);
+        item.status = "completed";
+        this.completedItems.push(item);
+        continue;
+      }
+
+      const movieFile = await this.radarr.getMovieFile(item.id);
+
+      if (!movieFile) {
+        logger.info(`[DRY-RUN]   Could not get movie file info`);
+        item.status = "completed";
+        this.completedItems.push(item);
+        continue;
+      }
+
+      const comparison = calculateScoreComparison({
+        expectedScore: grabbed.customFormatScore,
+        actualScore: movieFile.customFormatScore,
+        maxOverScore: this.config.quality.maxOverScore,
+        maxUnderScore: this.config.quality.maxUnderScore,
+      });
+
+      logger.info(`[DRY-RUN]   Grabbed score: ${comparison.expectedScore}`);
+      logger.info(`[DRY-RUN]   Current file score: ${comparison.actualScore}`);
+      logger.info(`[DRY-RUN]   Difference: ${comparison.difference}`);
+
+      logDryRunResult(comparison, this.config.tag);
+
+      item.status = "completed";
+      this.completedItems.push(item);
+    }
+
+    this.searchQueue = [];
+    this.isRunning = false;
   }
 
   private async processSearchQueue(): Promise<void> {
@@ -156,9 +230,61 @@ export class QueueManager {
     const grabbed = await this.waitForNewHistoryEvent(item, "grabbed", 30000);
 
     if (!grabbed) {
-      logger.warn(`No grab for ${item.title}, no releases found or all rejected`);
-      item.status = "failed";
-      item.error = "No releases grabbed";
+      // No new grab - compare current file with last grabbed event from history
+      logger.info(`No new grab for ${item.title}, checking against previous grab...`);
+
+      const history = await this.radarr.getHistory(item.id);
+      const { grabbed: lastGrabbed } = findHistoryEvents(history);
+
+      if (!lastGrabbed) {
+        // No grabbed event at all - consider OK
+        logger.info(`No grab history for ${item.title}, marking as OK`);
+        item.status = "completed";
+
+        if (this.config.tag.enabled) {
+          const tag = await this.radarr.getOrCreateTag(this.config.tag.successTag);
+          const movie = await this.radarr.getMovie(item.id);
+          await this.radarr.addTagToMovie(movie, tag.id);
+          logger.info(`Applied success tag: ${this.config.tag.successTag}`);
+        }
+
+        this.completedItems.push(item);
+        return;
+      }
+
+      // Compare current file with last grabbed score
+      const movieFile = await this.radarr.getMovieFile(item.id);
+
+      if (!movieFile) {
+        logger.warn(`No file found for ${item.title}`);
+        item.status = "failed";
+        item.error = "No movie file found";
+        this.completedItems.push(item);
+        return;
+      }
+
+      const comparison = calculateScoreComparison({
+        expectedScore: lastGrabbed.customFormatScore,
+        actualScore: movieFile.customFormatScore,
+        maxOverScore: this.config.quality.maxOverScore,
+        maxUnderScore: this.config.quality.maxUnderScore,
+      });
+
+      logger.info(
+        `${item.title}: Grabbed=${comparison.expectedScore}, Current=${comparison.actualScore}, Diff=${comparison.difference}`
+      );
+
+      await handleScoreResult(
+        {
+          movie: { id: item.id, title: item.title, year: item.year },
+          quality: movieFile.quality.quality.name,
+          comparison,
+        },
+        { tagConfig: this.config.tag, qualityConfig: this.config.quality },
+        { radarr: this.radarr, discord: this.discord }
+      );
+
+      item.status = "completed";
       this.completedItems.push(item);
       return;
     }
@@ -204,10 +330,9 @@ export class QueueManager {
         if (item.status !== "downloading") continue;
 
         try {
-          const imported = await this.checkForImport(item);
+          const importDetected = await this.checkForImport(item);
 
-          if (imported) {
-            item.importedEvent = imported;
+          if (importDetected) {
             await this.processCompletedDownload(item);
           } else if (this.isTimedOut(item, timeoutMs)) {
             item.status = "failed";
@@ -229,63 +354,56 @@ export class QueueManager {
     }
   }
 
-  private async checkForImport(item: QueueItem): Promise<RadarrHistory | null> {
+  private async checkForImport(item: QueueItem): Promise<boolean> {
     const history = await this.radarr.getHistory(item.id);
-    return history.find(
+    const importEvent = history.find(
       (h) => h.eventType === "downloadFolderImported" && !item.initialHistoryIds.has(h.id)
-    ) ?? null;
+    );
+    return importEvent !== undefined;
   }
 
   private async processCompletedDownload(item: QueueItem): Promise<void> {
     logger.info(`Download completed for ${item.title}, checking score...`);
 
-    if (!item.grabbedEvent || !item.importedEvent) {
+    if (!item.grabbedEvent) {
       item.status = "failed";
-      item.error = "Missing grabbed or imported event";
+      item.error = "Missing grabbed event";
       this.removeFromDownloadQueue(item);
       this.completedItems.push(item);
       return;
     }
 
-    const expectedScore = item.grabbedEvent.customFormatScore;
-    const actualScore = item.importedEvent.customFormatScore;
-    const difference = actualScore - expectedScore;
+    // Get current file score (actual score after import)
+    const movieFile = await this.radarr.getMovieFile(item.id);
 
-    const toleranceValue =
-      this.config.quality.tolerancePercent > 0
-        ? (expectedScore * this.config.quality.tolerancePercent) / 100
-        : 0;
-    const withinTolerance = Math.abs(difference) <= toleranceValue;
-
-    logger.info(`${item.title}: Grabbed=${expectedScore}, Imported=${actualScore}, Diff=${difference}`);
-
-    const movie = await this.radarr.getMovie(item.id);
-
-    if (withinTolerance && difference === 0) {
-      // Perfect match - apply success tag
-      if (this.config.tag.enabled) {
-        const tag = await this.radarr.getOrCreateTag(this.config.tag.successTag);
-        await this.radarr.addTagToMovie(movie, tag.id);
-        logger.info(`Applied success tag to ${item.title}`);
-      }
-    } else {
-      // Mismatch - apply mismatch tag and notify
-      if (this.config.tag.enabled) {
-        const tag = await this.radarr.getOrCreateTag(this.config.tag.mismatchTag);
-        await this.radarr.addTagToMovie(movie, tag.id);
-        logger.info(`Applied mismatch tag to ${item.title}`);
-      }
-
-      await this.discord.sendScoreMismatch({
-        title: item.title,
-        year: item.year,
-        expectedScore,
-        actualScore,
-        difference,
-        tolerancePercent: this.config.quality.tolerancePercent,
-        quality: item.importedEvent.quality.quality.name,
-      });
+    if (!movieFile) {
+      item.status = "failed";
+      item.error = "Could not get movie file info after import";
+      this.removeFromDownloadQueue(item);
+      this.completedItems.push(item);
+      return;
     }
+
+    const comparison = calculateScoreComparison({
+      expectedScore: item.grabbedEvent.customFormatScore,
+      actualScore: movieFile.customFormatScore,
+      maxOverScore: this.config.quality.maxOverScore,
+      maxUnderScore: this.config.quality.maxUnderScore,
+    });
+
+    logger.info(
+      `${item.title}: Grabbed=${comparison.expectedScore}, Current=${comparison.actualScore}, Diff=${comparison.difference}`
+    );
+
+    await handleScoreResult(
+      {
+        movie: { id: item.id, title: item.title, year: item.year },
+        quality: movieFile.quality.quality.name,
+        comparison,
+      },
+      { tagConfig: this.config.tag, qualityConfig: this.config.quality },
+      { radarr: this.radarr, discord: this.discord }
+    );
 
     item.status = "completed";
     this.removeFromDownloadQueue(item);

@@ -28,7 +28,8 @@ export const tagConfigSchema = z.object({
 });
 
 export const qualityConfigSchema = z.object({
-  tolerancePercent: z.number().min(0).max(100).default(0),
+  maxOverScore: z.number().min(0).default(100),
+  maxUnderScore: z.number().min(0).default(0),
 });
 
 export const batchConfigSchema = z.object({
@@ -47,7 +48,7 @@ export const configSchema = z.object({
     successTag: "check_ok",
     mismatchTag: "quality-mismatch",
   }),
-  quality: qualityConfigSchema.default({ tolerancePercent: 0 }),
+  quality: qualityConfigSchema.default({ maxOverScore: 100, maxUnderScore: 0 }),
   batch: batchConfigSchema.default({
     maxConcurrentDownloads: 3,
     searchIntervalSeconds: 30,

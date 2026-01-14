@@ -1,6 +1,22 @@
 import type { Config } from "../types/index.js";
-import { RadarrService, DiscordService } from "../services/index.js";
-import { logger } from "../utils/index.js";
+import {
+  RadarrService,
+  DiscordService,
+  calculateScoreComparison,
+  handleScoreResult,
+  logScoreComparison,
+  logDryRunResult,
+} from "../services/index.js";
+import {
+  logger,
+  findHistoryEvents,
+  waitForHistoryEvent,
+  HISTORY_EVENT_TYPES,
+} from "../utils/index.js";
+
+export interface SearchOptions {
+  dryRun?: boolean;
+}
 
 interface SearchResult {
   movie: {
@@ -11,14 +27,17 @@ interface SearchResult {
   expectedScore: number;
   actualScore: number;
   difference: number;
-  withinTolerance: boolean;
+  isAcceptable: boolean;
   tagApplied: string | null;
 }
 
 export async function searchCommand(
   config: Config,
-  movieId: number
+  tmdbId: number,
+  options: SearchOptions = {}
 ): Promise<SearchResult | null> {
+  const { dryRun = false } = options;
+
   if (!config.radarr) {
     throw new Error("Radarr is not configured");
   }
@@ -26,14 +45,85 @@ export async function searchCommand(
   const radarr = new RadarrService(config.radarr);
   const discord = new DiscordService(config.discord);
 
-  // Get movie details
-  logger.info(`Fetching movie details for ID: ${movieId}`);
-  const movie = await radarr.getMovie(movieId);
+  // Get movie details by TMDB ID
+  logger.info(`Fetching movie details for TMDB ID: ${tmdbId}`);
+  const movie = await radarr.getMovieByTmdbId(tmdbId);
+
+  if (!movie) {
+    throw new Error(`Movie with TMDB ID ${tmdbId} not found in Radarr`);
+  }
+
   logger.info(`Found movie: ${movie.title} (${movie.year})`);
 
+  if (dryRun) {
+    return handleDryRunMode(radarr, movie, config);
+  }
+
+  return handleRealMode(radarr, discord, movie, config);
+}
+
+async function handleDryRunMode(
+  radarr: RadarrService,
+  movie: { id: number; title: string; year: number; hasFile: boolean },
+  config: Config
+): Promise<SearchResult | null> {
+  logger.info("[DRY-RUN] Would trigger search for this movie");
+
+  // Get grabbed event from history (expected score)
+  const history = await radarr.getHistory(movie.id);
+  const { grabbed } = findHistoryEvents(history);
+
+  if (!grabbed) {
+    logger.info("[DRY-RUN] No grabbed event found in history");
+    logger.info("[DRY-RUN] In real mode, would search and wait for download");
+    return null;
+  }
+
+  // Get current file score (actual score)
+  if (!movie.hasFile) {
+    logger.info("[DRY-RUN] Movie has no file yet");
+    logger.info("[DRY-RUN] In real mode, would search and wait for download");
+    return null;
+  }
+
+  const movieFile = await radarr.getMovieFile(movie.id);
+
+  if (!movieFile) {
+    logger.info("[DRY-RUN] Could not get movie file info");
+    return null;
+  }
+
+  const comparison = calculateScoreComparison({
+    expectedScore: grabbed.customFormatScore,
+    actualScore: movieFile.customFormatScore,
+    maxOverScore: config.quality.maxOverScore,
+    maxUnderScore: config.quality.maxUnderScore,
+  });
+
+  logger.info(`[DRY-RUN] Grabbed score: ${comparison.expectedScore}`);
+  logger.info(`[DRY-RUN] Current file score: ${comparison.actualScore}`);
+  logScoreComparison(comparison, "[DRY-RUN]");
+  logDryRunResult(comparison, config.tag);
+
+  return {
+    movie: { id: movie.id, title: movie.title, year: movie.year },
+    expectedScore: comparison.expectedScore,
+    actualScore: comparison.actualScore,
+    difference: comparison.difference,
+    isAcceptable: comparison.isAcceptable,
+    tagApplied: null,
+  };
+}
+
+async function handleRealMode(
+  radarr: RadarrService,
+  discord: DiscordService,
+  movie: { id: number; title: string; year: number; tags: number[] },
+  config: Config
+): Promise<SearchResult | null> {
   // Trigger search
   logger.info("Triggering movie search...");
-  const command = await radarr.searchMovie(movieId);
+  const command = await radarr.searchMovie(movie.id);
   logger.info(`Search command started (ID: ${command.id})`);
 
   // Wait for search to complete
@@ -43,113 +133,124 @@ export async function searchCommand(
 
   // Wait for grabbed event
   logger.info("Waiting for grab...");
-  const grabbed = await waitForHistoryEvent(radarr, movieId, "grabbed");
+  const grabbed = await waitForHistoryEvent(
+    () => radarr.getHistory(movie.id),
+    HISTORY_EVENT_TYPES.GRABBED,
+    { timeoutMs: 60000, pollIntervalMs: 5000 }
+  );
 
   if (!grabbed) {
-    logger.warn("No grab detected, movie may not have been found");
-    return null;
+    // No new grab - compare current file with last grabbed event from history
+    logger.info("No new grab detected, checking against previous grab...");
+
+    const history = await radarr.getHistory(movie.id);
+    const { grabbed: lastGrabbed } = findHistoryEvents(history);
+
+    if (!lastGrabbed) {
+      // No grabbed event at all - consider OK
+      logger.info("No grab history found, marking as OK");
+
+      if (config.tag.enabled) {
+        const tag = await radarr.getOrCreateTag(config.tag.successTag);
+        const fullMovie = await radarr.getMovie(movie.id);
+        await radarr.addTagToMovie(fullMovie, tag.id);
+        logger.info(`Applied success tag: ${config.tag.successTag}`);
+      }
+
+      return {
+        movie: { id: movie.id, title: movie.title, year: movie.year },
+        expectedScore: 0,
+        actualScore: 0,
+        difference: 0,
+        isAcceptable: true,
+        tagApplied: config.tag.enabled ? config.tag.successTag : null,
+      };
+    }
+
+    // Compare current file with last grabbed score
+    const movieFile = await radarr.getMovieFile(movie.id);
+
+    if (!movieFile) {
+      logger.warn("No movie file found");
+      return null;
+    }
+
+    const comparison = calculateScoreComparison({
+      expectedScore: lastGrabbed.customFormatScore,
+      actualScore: movieFile.customFormatScore,
+      maxOverScore: config.quality.maxOverScore,
+      maxUnderScore: config.quality.maxUnderScore,
+    });
+
+    logScoreComparison(comparison);
+
+    const resultOutput = await handleScoreResult(
+      {
+        movie: { id: movie.id, title: movie.title, year: movie.year },
+        quality: movieFile.quality.quality.name,
+        comparison,
+      },
+      { tagConfig: config.tag, qualityConfig: config.quality },
+      { radarr, discord }
+    );
+
+    return {
+      movie: { id: movie.id, title: movie.title, year: movie.year },
+      expectedScore: comparison.expectedScore,
+      actualScore: comparison.actualScore,
+      difference: comparison.difference,
+      isAcceptable: comparison.isAcceptable,
+      tagApplied: resultOutput.tagApplied,
+    };
   }
 
-  const expectedScore = grabbed.customFormatScore;
-  logger.info(`Grabbed: ${grabbed.sourceTitle} (score: ${expectedScore})`);
+  logger.info(`Grabbed: ${grabbed.sourceTitle} (score: ${grabbed.customFormatScore})`);
 
   // Wait for import
   logger.info("Waiting for download and import...");
-  const imported = await waitForHistoryEvent(
-    radarr,
-    movieId,
-    "downloadFolderImported",
-    3600000 // 1 hour timeout for download
+  await waitForHistoryEvent(
+    () => radarr.getHistory(movie.id),
+    HISTORY_EVENT_TYPES.IMPORTED,
+    { timeoutMs: 3600000, pollIntervalMs: 5000 } // 1 hour timeout
   );
 
-  if (!imported) {
-    logger.warn("Download did not complete or import failed");
+  // Get current file score (actual score after import and potential renames)
+  const movieFile = await radarr.getMovieFile(movie.id);
+
+  if (!movieFile) {
+    logger.warn("Could not get movie file info after import");
     return null;
   }
 
-  const actualScore = imported.customFormatScore;
-  logger.info(`Imported: ${imported.sourceTitle} (score: ${actualScore})`);
+  logger.info(`Current file score: ${movieFile.customFormatScore}`);
 
-  // Calculate difference
-  const difference = actualScore - expectedScore;
-  const tolerancePercent = config.quality.tolerancePercent;
-  const toleranceValue =
-    tolerancePercent > 0 ? (expectedScore * tolerancePercent) / 100 : 0;
-  const withinTolerance = Math.abs(difference) <= toleranceValue;
+  // Calculate comparison using grabbed score vs current file score
+  const comparison = calculateScoreComparison({
+    expectedScore: grabbed.customFormatScore,
+    actualScore: movieFile.customFormatScore,
+    maxOverScore: config.quality.maxOverScore,
+    maxUnderScore: config.quality.maxUnderScore,
+  });
 
-  logger.info(`Expected score: ${expectedScore}`);
-  logger.info(`Actual score: ${actualScore}`);
-  logger.info(`Difference: ${difference}`);
+  logScoreComparison(comparison);
 
-  const result: SearchResult = {
-    movie: {
-      id: movie.id,
-      title: movie.title,
-      year: movie.year,
+  // Handle result
+  const resultOutput = await handleScoreResult(
+    {
+      movie: { id: movie.id, title: movie.title, year: movie.year },
+      quality: movieFile.quality.quality.name,
+      comparison,
     },
-    expectedScore,
-    actualScore,
-    difference,
-    withinTolerance,
-    tagApplied: null,
+    { tagConfig: config.tag, qualityConfig: config.quality },
+    { radarr, discord }
+  );
+
+  return {
+    movie: { id: movie.id, title: movie.title, year: movie.year },
+    expectedScore: comparison.expectedScore,
+    actualScore: comparison.actualScore,
+    difference: comparison.difference,
+    isAcceptable: comparison.isAcceptable,
+    tagApplied: resultOutput.tagApplied,
   };
-
-  if (withinTolerance && difference === 0) {
-    // Perfect match - apply success tag
-    logger.info("Score matches expected value");
-    if (config.tag.enabled) {
-      const tag = await radarr.getOrCreateTag(config.tag.successTag);
-      await radarr.addTagToMovie(movie, tag.id);
-      result.tagApplied = config.tag.successTag;
-      logger.info(`Applied success tag: ${config.tag.successTag}`);
-    }
-  } else {
-    // Mismatch - apply mismatch tag and notify
-    logger.warn("Score mismatch detected");
-    if (config.tag.enabled) {
-      const tag = await radarr.getOrCreateTag(config.tag.mismatchTag);
-      await radarr.addTagToMovie(movie, tag.id);
-      result.tagApplied = config.tag.mismatchTag;
-      logger.info(`Applied mismatch tag: ${config.tag.mismatchTag}`);
-    }
-
-    await discord.sendScoreMismatch({
-      title: movie.title,
-      year: movie.year,
-      expectedScore,
-      actualScore,
-      difference,
-      tolerancePercent,
-      quality: imported.quality.quality.name,
-    });
-  }
-
-  return result;
-}
-
-async function waitForHistoryEvent(
-  radarr: RadarrService,
-  movieId: number,
-  eventType: string,
-  timeoutMs = 60000,
-  pollIntervalMs = 5000
-): Promise<{ sourceTitle: string; customFormatScore: number; quality: { quality: { name: string } } } | null> {
-  const startTime = Date.now();
-  const initialHistory = await radarr.getHistory(movieId);
-  const initialEventIds = new Set(initialHistory.map((h) => h.id));
-
-  while (Date.now() - startTime < timeoutMs) {
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-
-    const history = await radarr.getHistory(movieId);
-    const newEvent = history.find(
-      (h) => h.eventType === eventType && !initialEventIds.has(h.id)
-    );
-
-    if (newEvent) {
-      return newEvent;
-    }
-  }
-
-  return null;
 }

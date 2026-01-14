@@ -1,6 +1,7 @@
 import type {
   RadarrConfig,
   RadarrMovie,
+  RadarrMovieFile,
   RadarrQueueItem,
   RadarrRelease,
   RadarrHistory,
@@ -31,7 +32,13 @@ export class RadarrService {
 
     logger.debug(`Radarr API request: ${options.method ?? "GET"} ${endpoint}`);
 
-    const response = await fetch(url, { ...options, headers });
+    let response: Response;
+    try {
+      response = await fetch(url, { ...options, headers });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Radarr API connection failed (${url}): ${message}`);
+    }
 
     if (!response.ok) {
       throw new Error(
@@ -48,6 +55,11 @@ export class RadarrService {
 
   async getMovie(id: number): Promise<RadarrMovie> {
     return this.request<RadarrMovie>(`/movie/${id}`);
+  }
+
+  async getMovieByTmdbId(tmdbId: number): Promise<RadarrMovie | null> {
+    const movies = await this.request<RadarrMovie[]>(`/movie?tmdbId=${tmdbId}`);
+    return movies[0] ?? null;
   }
 
   async searchMovie(movieId: number): Promise<RadarrCommand> {
@@ -70,11 +82,20 @@ export class RadarrService {
     return this.request<RadarrRelease[]>(`/release?movieId=${movieId}`);
   }
 
+  async getMovieFile(movieId: number): Promise<RadarrMovieFile | null> {
+    const files = await this.request<RadarrMovieFile[]>(`/moviefile?movieId=${movieId}`);
+    return files[0] ?? null;
+  }
+
   async getHistory(movieId: number): Promise<RadarrHistory[]> {
-    const result = await this.request<{ records: RadarrHistory[] }>(
+    const result = await this.request<{ records: RadarrHistory[] } | RadarrHistory[]>(
       `/history/movie?movieId=${movieId}`
     );
-    return result.records;
+    // API can return { records: [...] } or directly [...]
+    if (Array.isArray(result)) {
+      return result;
+    }
+    return result.records ?? [];
   }
 
   async getTags(): Promise<RadarrTag[]> {

@@ -7,7 +7,7 @@ export interface ScoreMismatchInfo {
   expectedScore: number;
   actualScore: number;
   difference: number;
-  tolerancePercent: number;
+  maxOverScore: number;
   quality: string;
   indexer?: string;
 }
