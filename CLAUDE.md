@@ -1,130 +1,145 @@
-# Qualitarr - Instructions Claude
+# Qualitarr - Claude Instructions
 
-## Description du projet
+## Project Description
 
-Qualitarr est un outil CLI qui surveille et compare les scores de qualité (Custom Formats) attendus vs réels pour les téléchargements Radarr/Sonarr. Il détecte les écarts entre le score annoncé par l'indexer et le score réel après import.
+Qualitarr is a CLI tool that monitors and compares expected vs actual quality scores (Custom Formats) for Radarr/Sonarr downloads. It detects discrepancies between the score announced by the indexer and the actual score after import.
 
-## Structure du projet
+## Project Structure
 
 ```
 qualitarr/
 ├── src/
-│   ├── cli.ts              # Point d'entrée CLI
-│   ├── commands/           # Commandes (batch, import, search)
+│   ├── cli.ts              # CLI entry point
+│   ├── commands/           # Commands (batch, import, search)
 │   ├── services/           # Services (radarr, discord, queue, score)
-│   ├── types/              # Types TypeScript (config, radarr, score)
-│   └── utils/              # Utilitaires (logger, env, history)
-├── tests/                  # Tests Vitest
+│   ├── types/              # TypeScript types (config, radarr, score)
+│   └── utils/              # Utilities (logger, env, history)
+├── tests/                  # Vitest tests
 │   ├── services/
 │   └── utils/
 ├── .github/workflows/      # CI/CD GitHub Actions
-├── Dockerfile              # Build multi-stage Node 22 Alpine
-├── vitest.config.ts        # Configuration tests
-└── config.example.yaml     # Exemple de configuration
+├── Dockerfile              # Multi-stage build Node 22 Alpine
+├── vitest.config.ts        # Test configuration
+└── config.example.yaml     # Configuration example
 ```
 
-## Commandes essentielles
+## Essential Commands
 
 ```bash
-# Développement
+# Development
 npm run build        # Compile TypeScript
-npm run dev          # Build en mode watch
-npm run lint         # Vérifie ESLint
-npm run format       # Formate avec Prettier
+npm run dev          # Build in watch mode
+npm run lint         # Run ESLint
+npm run format       # Format with Prettier
 
 # Tests
-npm test             # Lance les tests (vitest run)
-npm run test:watch   # Tests en mode watch
-npm run test:coverage # Tests avec couverture
+npm test             # Run tests (vitest run)
+npm run test:watch   # Tests in watch mode
+npm run test:coverage # Tests with coverage
 
 # Packaging
-npm run package      # Crée les binaires avec @yao-pkg/pkg
+npm run package      # Create binaries with @yao-pkg/pkg
 ```
 
-## Workflow obligatoire avant commit
+## Pre-commit Workflow
 
-**TOUJOURS exécuter dans cet ordre avant de commit :**
-
+**For code files (`.ts`, `.js`, etc.):**
 ```bash
 npm run lint && npm run format && npm run build
 ```
 
-Ces commandes doivent passer sans erreur avant tout commit.
+**For markdown files (`.md`) only:** No lint/format needed.
 
-## Configuration ESLint
+## Git Workflow
 
-Le projet utilise ESLint strict avec TypeScript. Règles importantes :
-- `@typescript-eslint/restrict-template-expressions` avec `allowNumber: true`
-- `@typescript-eslint/no-unused-vars` avec `argsIgnorePattern: "^_"`
+### Branches
+- **develop**: main development branch
+- **main**: stable branch (releases)
+- For each feature/bug: create a new branch from `develop` (ensure it's up to date with GitHub)
+
+### Commits
+- **Concise** messages in **English**
+- Commit signing: ask for confirmation if it fails
+
+### Pull Requests
+- Create via `gh pr create` only when user requests it
+- Always follow the template in `.github/`
+- PR to `develop` (except releases to `main`)
+
+## ESLint Configuration
+
+Project uses strict ESLint with TypeScript. Important rules:
+- `@typescript-eslint/restrict-template-expressions` with `allowNumber: true`
+- `@typescript-eslint/no-unused-vars` with `argsIgnorePattern: "^_"`
 
 ## CI/CD
 
-### Workflows GitHub Actions
+### GitHub Actions Workflows
 
-| Workflow | Déclencheur | Description |
-|----------|-------------|-------------|
-| `ci.yml` | PR vers main | Lint, tests, build |
-| `develop.yml` | Push sur develop | Build image Docker develop |
-| `release.yml` | Tag v*.*.* | Build binaires + image Docker release |
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| `ci.yml` | PR to main | Lint, tests, build |
+| `develop.yml` | Push to develop | Build Docker develop image |
+| `release.yml` | Tag v*.*.* | Build binaries + Docker release image |
 
-### Binaires générés
+### Generated Binaries
 
-Le packaging crée des binaires pour :
-- `qualitarr-linux-amd64` (renommé depuis linux-x64)
+Packaging creates binaries for:
+- `qualitarr-linux-amd64` (renamed from linux-x64)
 - `qualitarr-linux-arm64`
 - `qualitarr-macos-x64`
 - `qualitarr-win-x64.exe`
 
 ### Docker
 
-L'image Docker utilise un build TypeScript complet (pas les binaires pkg car Alpine utilise musl, incompatible avec glibc).
+Docker image uses full TypeScript build (not pkg binaries because Alpine uses musl, incompatible with glibc).
 
-## Conventions de code
+## Code Conventions
 
-- Code et commits en **anglais**
-- Communication en **français** (préférence utilisateur)
-- Pas d'emojis sauf demande explicite
-- Types stricts, pas de `any`
+- Code and commits in **English**
+- Communication in **French** (user preference)
+- No emojis unless explicitly requested
+- Strict types, no `any`
 
-## Types principaux
+## Main Types
 
 ### ScoreComparison
 ```typescript
 interface ScoreComparison {
-  expectedScore: number;   // Score du grabbed event
-  actualScore: number;     // Score du fichier importé
+  expectedScore: number;   // Score from grabbed event
+  actualScore: number;     // Score from imported file
   difference: number;      // actual - expected
-  isOverScore: boolean;    // Au-dessus des limites
-  isUnderScore: boolean;   // En-dessous des limites
-  isWithinLimits: boolean; // Dans les limites acceptables
+  isOverScore: boolean;    // Above limits
+  isUnderScore: boolean;   // Below limits
+  isWithinLimits: boolean; // Within acceptable limits
 }
 ```
 
 ### Config
-Voir `src/types/config.ts` - Schéma Zod avec validation.
+See `src/types/config.ts` - Zod schema with validation.
 
-## API Radarr utilisée
+## Radarr API Used
 
-- `GET /api/v3/movie` - Liste des films
-- `GET /api/v3/history/movie?movieId=X` - Historique d'un film
-- `GET /api/v3/moviefile?movieId=X` - Fichier d'un film
-- `POST /api/v3/command` - Lancer une recherche
-- `GET/POST /api/v3/tag` - Gestion des tags
+- `GET /api/v3/movie` - List movies
+- `GET /api/v3/history/movie?movieId=X` - Movie history
+- `GET /api/v3/moviefile?movieId=X` - Movie file
+- `POST /api/v3/command` - Trigger search
+- `GET/POST /api/v3/tag` - Tag management
 
 ## Tests
 
-Framework: **Vitest** avec couverture v8
+Framework: **Vitest** with v8 coverage
 
-Fichiers de tests :
-- `tests/services/score.test.ts` - Calcul et gestion des scores
-- `tests/utils/history.test.ts` - Parsing historique Radarr
-- `tests/utils/env.test.ts` - Variables d'environnement Radarr/Sonarr
+Test files:
+- `tests/services/score.test.ts` - Score calculation and handling
+- `tests/utils/history.test.ts` - Radarr history parsing
+- `tests/utils/env.test.ts` - Radarr/Sonarr environment variables
 - `tests/utils/logger.test.ts` - Logger
 
-Couverture actuelle : **100%** sur les fichiers testés.
+Current coverage: **100%** on tested files.
 
-## Git
+## Releases
 
-- Branche principale : `main`
-- Tags de release : `vX.Y.Z` (ex: v0.1.0)
-- Signature des commits : demander confirmation si échec
+- Release tags: `vX.Y.Z` (e.g., v0.1.0)
+- Created from `main` after merging `develop`
+- Commit signing: if it fails, ask user for confirmation before retrying or aborting
