@@ -151,6 +151,15 @@ npm run build
 # Watch mode
 npm run dev
 
+# Run tests
+npm test
+
+# Run tests once
+npm run test:run
+
+# Run tests with coverage
+npm run test:coverage
+
 # Lint
 npm run lint
 
