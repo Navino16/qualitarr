@@ -66,6 +66,13 @@ npm run lint && npm run format && npm run build
 - Always follow the template in `.github/`
 - PR to `develop` (except releases to `main`)
 
+### Documentation Updates
+Always update these files when implementing features/fixes:
+- `PLAN.md` - Mark tasks as completed
+- `CLAUDE.md` - Update if relevant to project instructions
+- `README.md` - Update configuration examples and features
+- `config.example.yaml` - Add new configuration options
+
 ## ESLint Configuration
 
 Project uses strict ESLint with TypeScript. Important rules:
