@@ -1,13 +1,29 @@
 import { z } from "zod/v4";
 
+export const apiConfigSchema = z.object({
+  timeoutMs: z.number().min(1000).max(120000).default(30000),
+  retryAttempts: z.number().min(0).max(10).default(3),
+  retryDelayMs: z.number().min(100).max(30000).default(1000),
+});
+
 export const radarrConfigSchema = z.object({
   url: z.url("Invalid Radarr URL"),
   apiKey: z.string().min(1, "Radarr API key is required"),
+  api: apiConfigSchema.default({
+    timeoutMs: 30000,
+    retryAttempts: 3,
+    retryDelayMs: 1000,
+  }),
 });
 
 export const sonarrConfigSchema = z.object({
   url: z.url("Invalid Sonarr URL"),
   apiKey: z.string().min(1, "Sonarr API key is required"),
+  api: apiConfigSchema.default({
+    timeoutMs: 30000,
+    retryAttempts: 3,
+    retryDelayMs: 1000,
+  }),
 });
 
 export const discordConfigSchema = z
@@ -63,6 +79,7 @@ export const configSchema = z
     message: "At least one of radarr or sonarr must be configured",
   });
 
+export type ApiConfig = z.infer<typeof apiConfigSchema>;
 export type RadarrConfig = z.infer<typeof radarrConfigSchema>;
 export type SonarrConfig = z.infer<typeof sonarrConfigSchema>;
 export type DiscordConfig = z.infer<typeof discordConfigSchema>;

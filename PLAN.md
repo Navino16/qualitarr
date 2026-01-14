@@ -2,12 +2,12 @@
 
 ## Phase 0: Code Quality & Stability
 
-### 0.1 API Client Robustness (`src/services/radarr.ts`)
-- [ ] Add retry logic with exponential backoff (3 attempts)
-- [ ] Add configurable timeout on fetch requests (default 30s)
-- [ ] Handle HTTP 429 (rate limiting) with automatic retry
-- [ ] Use `URLSearchParams` for query string encoding
-- [ ] Add Zod validation for API responses
+### 0.1 API Client Robustness (`src/services/radarr.ts`) ✅
+- [x] Add retry logic with exponential backoff (3 attempts)
+- [x] Add configurable timeout on fetch requests (default 30s)
+- [x] Handle HTTP 429 (rate limiting) with automatic retry
+- [x] Use `URLSearchParams` for query string encoding
+- [x] Add Zod validation for API responses
 
 ### 0.2 Queue Manager Fixes (`src/services/queue.ts`)
 - [ ] Fix race condition on `isRunning` flag
