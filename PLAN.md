@@ -9,12 +9,12 @@
 - [x] Use `URLSearchParams` for query string encoding
 - [x] Add Zod validation for API responses
 
-### 0.2 Queue Manager Fixes (`src/services/queue.ts`)
-- [ ] Fix race condition on `isRunning` flag
-- [ ] Clear `completedItems` after summary (memory leak fix)
-- [ ] Add error boundary around Discord notifications
-- [ ] Ensure `startedAt` is always set before download queue
-- [ ] Add graceful shutdown mechanism
+### 0.2 Queue Manager Fixes (`src/services/queue.ts`) ✅
+- [x] Fix race condition on `isRunning` flag
+- [x] Clear `completedItems` after summary (memory leak fix)
+- [x] Add error boundary around Discord notifications
+- [x] Ensure `startedAt` is always set before download queue
+- [x] Add graceful shutdown mechanism
 
 ### 0.3 Code Deduplication
 - [ ] Extract `sleep()` to shared utility (duplicated in queue.ts and history.ts)

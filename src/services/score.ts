@@ -92,16 +92,25 @@ export async function handleScoreResult(
       logger.info(`Applied mismatch tag: ${tagConfig.mismatchTag}`);
     }
 
-    await discord.sendScoreMismatch({
-      title: movie.title,
-      year: movie.year,
-      expectedScore: comparison.expectedScore,
-      actualScore: comparison.actualScore,
-      difference: comparison.difference,
-      maxOverScore: qualityConfig.maxOverScore,
-      quality,
-    });
-    output.notificationSent = true;
+    try {
+      await discord.sendScoreMismatch({
+        title: movie.title,
+        year: movie.year,
+        expectedScore: comparison.expectedScore,
+        actualScore: comparison.actualScore,
+        difference: comparison.difference,
+        maxOverScore: qualityConfig.maxOverScore,
+        quality,
+      });
+      output.notificationSent = true;
+    } catch (error) {
+      // Discord notification failure should not fail the entire operation
+      logger.error(
+        `Failed to send Discord notification for ${movie.title}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 
   return output;
