@@ -170,7 +170,7 @@ async function handleRealMode(
     const movieFile = await radarr.getMovieFile(movie.id);
 
     if (!movieFile) {
-      logger.warn("No movie file found");
+      logger.warn(`[${movie.title}] No movie file found`);
       return null;
     }
 
@@ -218,7 +218,7 @@ async function handleRealMode(
   const movieFile = await radarr.getMovieFile(movie.id);
 
   if (!movieFile) {
-    logger.warn("Could not get movie file info after import");
+    logger.warn(`[${movie.title}] Could not get movie file info after import`);
     return null;
   }
 

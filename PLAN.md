@@ -22,10 +22,10 @@
 - [x] Extract common score comparison pattern to helper function
 - [x] Create `completeItem()` helper in QueueManager
 
-### 0.4 Error Handling Standardization
-- [ ] Create `formatError(error: unknown)` utility function
-- [ ] Add context to all error messages (movie title, endpoint, etc.)
-- [ ] Standardize logging patterns across services
+### 0.4 Error Handling Standardization ✅
+- [x] Create `formatError(error: unknown)` utility function
+- [x] Add context to all error messages (movie title, endpoint, etc.)
+- [x] Standardize logging patterns across services
 
 ### 0.5 Configuration Cleanup
 - [ ] Move magic numbers to config:
