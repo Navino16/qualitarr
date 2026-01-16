@@ -35,6 +35,7 @@ export class QueueManager {
   private discord: DiscordService;
   private isRunning = false;
   private dryRun: boolean;
+  private abortController: AbortController | null = null;
 
   constructor(config: Config, options: QueueManagerOptions = {}) {
     if (!config.radarr) {
@@ -113,27 +114,36 @@ export class QueueManager {
     }
 
     this.isRunning = true;
+    this.abortController = new AbortController();
     logger.info("Starting queue manager...");
 
-    if (this.dryRun) {
-      await this.runDryMode();
-    } else {
-      // Start download monitor in background
-      const downloadMonitorPromise = this.monitorDownloads();
+    try {
+      if (this.dryRun) {
+        await this.runDryMode();
+      } else {
+        // Start download monitor in background
+        const downloadMonitorPromise = this.monitorDownloads();
 
-      // Process search queue
-      await this.processSearchQueue();
+        // Process search queue
+        await this.processSearchQueue();
 
-      // Wait for all downloads to complete
-      await this.waitForDownloadsToComplete();
+        // Wait for all downloads to complete
+        await this.waitForDownloadsToComplete();
 
-      // Stop monitoring
+        // Stop monitoring and wait for it to finish
+        this.isRunning = false;
+        await downloadMonitorPromise;
+      }
+
+      logger.info("Queue manager finished");
+      this.printSummary();
+    } finally {
+      // Ensure state is always reset, even on error
       this.isRunning = false;
-      await downloadMonitorPromise;
+      this.abortController = null;
+      // Clear completed items to prevent memory leak
+      this.completedItems = [];
     }
-
-    logger.info("Queue manager finished");
-    this.printSummary();
   }
 
   private async runDryMode(): Promise<void> {
@@ -190,11 +200,10 @@ export class QueueManager {
     }
 
     this.searchQueue = [];
-    this.isRunning = false;
   }
 
   private async processSearchQueue(): Promise<void> {
-    while (this.searchQueue.length > 0 && this.isRunning) {
+    while (this.searchQueue.length > 0 && this.isRunning && !this.isShuttingDown()) {
       // Wait if download queue is full
       if (
         this.downloadQueue.length >= this.batchConfig.maxConcurrentDownloads
@@ -340,7 +349,7 @@ export class QueueManager {
   private async monitorDownloads(): Promise<void> {
     const timeoutMs = this.batchConfig.downloadTimeoutMinutes * 60 * 1000;
 
-    while (this.isRunning || this.downloadQueue.length > 0) {
+    while ((this.isRunning || this.downloadQueue.length > 0) && !this.isShuttingDown()) {
       for (const item of [...this.downloadQueue]) {
         if (item.status !== "downloading") continue;
 
@@ -430,7 +439,15 @@ export class QueueManager {
   }
 
   private isTimedOut(item: QueueItem, timeoutMs: number): boolean {
-    if (!item.startedAt) return false;
+    if (!item.startedAt) {
+      // This should never happen - log warning for debugging
+      logger.warn(
+        `Item ${item.title} in download queue has no startedAt timestamp`
+      );
+      // Set startedAt now to prevent permanent stall
+      item.startedAt = new Date();
+      return false;
+    }
     return Date.now() - item.startedAt.getTime() > timeoutMs;
   }
 
@@ -442,7 +459,7 @@ export class QueueManager {
   }
 
   private async waitForDownloadsToComplete(): Promise<void> {
-    while (this.downloadQueue.length > 0) {
+    while (this.downloadQueue.length > 0 && !this.isShuttingDown()) {
       logger.debug(
         `Waiting for ${this.downloadQueue.length} downloads to complete...`
       );
@@ -474,5 +491,27 @@ export class QueueManager {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Check if shutdown has been requested
+   */
+  private isShuttingDown(): boolean {
+    return this.abortController?.signal.aborted ?? false;
+  }
+
+  /**
+   * Request graceful shutdown of the queue manager.
+   * This will stop processing new items and wait for current operations to complete.
+   */
+  shutdown(): void {
+    if (!this.isRunning) {
+      logger.debug("Queue manager is not running, nothing to shutdown");
+      return;
+    }
+
+    logger.info("Shutdown requested, stopping queue manager gracefully...");
+    this.abortController?.abort();
+    this.isRunning = false;
   }
 }
