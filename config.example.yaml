@@ -4,11 +4,20 @@
 radarr:
   url: "http://localhost:7878"
   apiKey: "your-radarr-api-key"
+  # API request settings (optional)
+  api:
+    timeoutMs: 30000       # Request timeout in milliseconds (default: 30000)
+    retryAttempts: 3       # Number of retry attempts on failure (default: 3)
+    retryDelayMs: 1000     # Initial delay between retries in ms (default: 1000)
 
 # Sonarr configuration (coming soon)
 # sonarr:
 #   url: "http://localhost:8989"
 #   apiKey: "your-sonarr-api-key"
+#   api:
+#     timeoutMs: 30000
+#     retryAttempts: 3
+#     retryDelayMs: 1000
 
 # Discord webhook notifications
 discord:
