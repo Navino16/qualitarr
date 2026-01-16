@@ -17,14 +17,27 @@ export async function batchCommand(
 
   const queueManager = new QueueManager(config, { dryRun });
 
-  const count = await queueManager.loadMoviesWithoutTag(limit);
+  // Setup graceful shutdown handlers
+  const shutdownHandler = () => {
+    queueManager.shutdown();
+  };
+  process.on("SIGTERM", shutdownHandler);
+  process.on("SIGINT", shutdownHandler);
 
-  if (count === 0) {
-    logger.info("No movies to process");
-    return;
+  try {
+    const count = await queueManager.loadMoviesWithoutTag(limit);
+
+    if (count === 0) {
+      logger.info("No movies to process");
+      return;
+    }
+
+    await queueManager.run();
+
+    logger.info("Batch mode completed");
+  } finally {
+    // Cleanup signal handlers
+    process.off("SIGTERM", shutdownHandler);
+    process.off("SIGINT", shutdownHandler);
   }
-
-  await queueManager.run();
-
-  logger.info("Batch mode completed");
 }
