@@ -9,29 +9,31 @@
 - [x] Use `URLSearchParams` for query string encoding
 - [x] Add Zod validation for API responses
 
-### 0.2 Queue Manager Fixes (`src/services/queue.ts`)
-- [ ] Fix race condition on `isRunning` flag
-- [ ] Clear `completedItems` after summary (memory leak fix)
-- [ ] Add error boundary around Discord notifications
-- [ ] Ensure `startedAt` is always set before download queue
-- [ ] Add graceful shutdown mechanism
+### 0.2 Queue Manager Fixes (`src/services/queue.ts`) ✅
+- [x] Fix race condition on `isRunning` flag
+- [x] Clear `completedItems` after summary (memory leak fix)
+- [x] Add error boundary around Discord notifications
+- [x] Ensure `startedAt` is always set before download queue
+- [x] Add graceful shutdown mechanism
 
-### 0.3 Code Deduplication
-- [ ] Extract `sleep()` to shared utility (duplicated in queue.ts and history.ts)
-- [ ] Create `getMovieFileOrFail()` helper in RadarrService
-- [ ] Extract common score comparison pattern to helper function
-- [ ] Create `completeItem()` helper in QueueManager
+### 0.3 Code Deduplication ✅
+- [x] Extract `sleep()` to shared utility (duplicated in queue.ts and history.ts)
+- [x] Create `getMovieFileOrFail()` helper in RadarrService
+- [x] Extract common score comparison pattern to helper function
+- [x] Create `completeItem()` helper in QueueManager
 
-### 0.4 Error Handling Standardization
-- [ ] Create `formatError(error: unknown)` utility function
-- [ ] Add context to all error messages (movie title, endpoint, etc.)
-- [ ] Standardize logging patterns across services
+### 0.4 Error Handling Standardization ✅
+- [x] Create `formatError(error: unknown)` utility function
+- [x] Add context to all error messages (movie title, endpoint, etc.)
+- [x] Standardize logging patterns across services
 
-### 0.5 Configuration Cleanup
-- [ ] Move magic numbers to config:
-  - `apiTimeoutMs` (currently hardcoded 30000, 60000, etc.)
-  - `commandPollIntervalMs` (currently hardcoded 2000, 3000)
-- [ ] Add config validation for timeout values
+### 0.5 Configuration Cleanup ✅
+- [x] Move magic numbers to config:
+  - `commandTimeoutMs` for search command timeout
+  - `commandPollIntervalMs` for command polling interval
+  - `grabWaitTimeoutMs` for grab event timeout
+  - `historyPollIntervalMs` for history polling interval
+- [x] Add config validation for timeout values (via Zod schema with min/max)
 
 ### 0.6 Test Coverage
 - [ ] Create `tests/services/radarr.test.ts` (target: 80%)

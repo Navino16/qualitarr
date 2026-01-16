@@ -19,7 +19,7 @@ import {
   radarrTagSchema,
   radarrCommandSchema,
 } from "../types/radarr.js";
-import { logger } from "../utils/index.js";
+import { logger, sleep, formatError } from "../utils/index.js";
 
 class RetryableError extends Error {
   constructor(
@@ -77,7 +77,7 @@ export class RadarrService {
         logger.debug(
           `Retry attempt ${attempt} after ${delay}ms for ${endpoint}`
         );
-        await this.sleep(delay);
+        await sleep(delay);
       }
 
       try {
@@ -120,8 +120,7 @@ export class RadarrService {
           `Radarr API timeout after ${this.apiConfig.timeoutMs}ms (${endpoint})`
         );
       }
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Radarr API connection failed (${endpoint}): ${message}`);
+      throw new Error(`Radarr API connection failed (${endpoint}): ${formatError(error)}`);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -201,10 +200,6 @@ export class RadarrService {
     return error instanceof RetryableError;
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   private buildEndpoint(
     path: string,
     params?: Record<string, string | number | boolean>
@@ -278,6 +273,18 @@ export class RadarrService {
       endpoint
     );
     return files[0] ?? null;
+  }
+
+  async getMovieFileOrFail(
+    movieId: number,
+    movieTitle?: string
+  ): Promise<RadarrMovieFile> {
+    const movieFile = await this.getMovieFile(movieId);
+    if (!movieFile) {
+      const context = movieTitle ? ` for "${movieTitle}"` : "";
+      throw new Error(`No movie file found${context} (movieId: ${movieId})`);
+    }
+    return movieFile;
   }
 
   async getHistory(movieId: number): Promise<RadarrHistory[]> {
@@ -358,7 +365,7 @@ export class RadarrService {
         throw new Error(`Command ${commandId} failed`);
       }
 
-      await this.sleep(pollIntervalMs);
+      await sleep(pollIntervalMs);
     }
 
     throw new Error(`Command ${commandId} timed out after ${timeoutMs}ms`);

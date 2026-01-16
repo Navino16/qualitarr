@@ -3,7 +3,7 @@ import type { RadarrEnvVars } from "../utils/env.js";
 import {
   RadarrService,
   DiscordService,
-  calculateScoreComparison,
+  compareScores,
   handleScoreResult,
 } from "../services/index.js";
 import { logger, findHistoryEvents } from "../utils/index.js";
@@ -29,7 +29,7 @@ export async function importCommand(
   const { grabbed } = findHistoryEvents(history);
 
   if (!grabbed) {
-    logger.warn("Could not find grabbed event in history, skipping");
+    logger.warn(`[${envVars.movieTitle}] No grabbed event in history, skipping`);
     return;
   }
 
@@ -37,17 +37,16 @@ export async function importCommand(
   const movieFile = await radarr.getMovieFile(envVars.movieId);
 
   if (!movieFile) {
-    logger.warn("Could not get movie file info, skipping");
+    logger.warn(`[${envVars.movieTitle}] No movie file found, skipping`);
     return;
   }
 
   // Calculate score comparison
-  const comparison = calculateScoreComparison({
-    expectedScore: grabbed.customFormatScore,
-    actualScore: movieFile.customFormatScore,
-    maxOverScore: config.quality.maxOverScore,
-    maxUnderScore: config.quality.maxUnderScore,
-  });
+  const comparison = compareScores(
+    grabbed.customFormatScore,
+    movieFile.customFormatScore,
+    config.quality
+  );
 
   logger.info(
     `Grabbed score: ${comparison.expectedScore} (${grabbed.sourceTitle})`

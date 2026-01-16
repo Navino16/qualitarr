@@ -2,7 +2,7 @@ import type { Config } from "../types/index.js";
 import {
   RadarrService,
   DiscordService,
-  calculateScoreComparison,
+  compareScores,
   handleScoreResult,
   logScoreComparison,
   logDryRunResult,
@@ -93,12 +93,11 @@ async function handleDryRunMode(
     return null;
   }
 
-  const comparison = calculateScoreComparison({
-    expectedScore: grabbed.customFormatScore,
-    actualScore: movieFile.customFormatScore,
-    maxOverScore: config.quality.maxOverScore,
-    maxUnderScore: config.quality.maxUnderScore,
-  });
+  const comparison = compareScores(
+    grabbed.customFormatScore,
+    movieFile.customFormatScore,
+    config.quality
+  );
 
   logger.info(`[DRY-RUN] Grabbed score: ${comparison.expectedScore}`);
   logger.info(`[DRY-RUN] Current file score: ${comparison.actualScore}`);
@@ -136,7 +135,10 @@ async function handleRealMode(
   const grabbed = await waitForHistoryEvent(
     () => radarr.getHistory(movie.id),
     HISTORY_EVENT_TYPES.GRABBED,
-    { timeoutMs: 60000, pollIntervalMs: 5000 }
+    {
+      timeoutMs: config.batch.grabWaitTimeoutMs,
+      pollIntervalMs: config.batch.historyPollIntervalMs,
+    }
   );
 
   if (!grabbed) {
@@ -171,16 +173,15 @@ async function handleRealMode(
     const movieFile = await radarr.getMovieFile(movie.id);
 
     if (!movieFile) {
-      logger.warn("No movie file found");
+      logger.warn(`[${movie.title}] No movie file found`);
       return null;
     }
 
-    const comparison = calculateScoreComparison({
-      expectedScore: lastGrabbed.customFormatScore,
-      actualScore: movieFile.customFormatScore,
-      maxOverScore: config.quality.maxOverScore,
-      maxUnderScore: config.quality.maxUnderScore,
-    });
+    const comparison = compareScores(
+      lastGrabbed.customFormatScore,
+      movieFile.customFormatScore,
+      config.quality
+    );
 
     logScoreComparison(comparison);
 
@@ -213,26 +214,28 @@ async function handleRealMode(
   await waitForHistoryEvent(
     () => radarr.getHistory(movie.id),
     HISTORY_EVENT_TYPES.IMPORTED,
-    { timeoutMs: 3600000, pollIntervalMs: 5000 } // 1 hour timeout
+    {
+      timeoutMs: config.batch.downloadTimeoutMinutes * 60 * 1000,
+      pollIntervalMs: config.batch.historyPollIntervalMs,
+    }
   );
 
   // Get current file score (actual score after import and potential renames)
   const movieFile = await radarr.getMovieFile(movie.id);
 
   if (!movieFile) {
-    logger.warn("Could not get movie file info after import");
+    logger.warn(`[${movie.title}] Could not get movie file info after import`);
     return null;
   }
 
   logger.info(`Current file score: ${movieFile.customFormatScore}`);
 
   // Calculate comparison using grabbed score vs current file score
-  const comparison = calculateScoreComparison({
-    expectedScore: grabbed.customFormatScore,
-    actualScore: movieFile.customFormatScore,
-    maxOverScore: config.quality.maxOverScore,
-    maxUnderScore: config.quality.maxUnderScore,
-  });
+  const comparison = compareScores(
+    grabbed.customFormatScore,
+    movieFile.customFormatScore,
+    config.quality
+  );
 
   logScoreComparison(comparison);
 
