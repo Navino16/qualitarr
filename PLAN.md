@@ -16,11 +16,11 @@
 - [x] Ensure `startedAt` is always set before download queue
 - [x] Add graceful shutdown mechanism
 
-### 0.3 Code Deduplication
-- [ ] Extract `sleep()` to shared utility (duplicated in queue.ts and history.ts)
-- [ ] Create `getMovieFileOrFail()` helper in RadarrService
-- [ ] Extract common score comparison pattern to helper function
-- [ ] Create `completeItem()` helper in QueueManager
+### 0.3 Code Deduplication ✅
+- [x] Extract `sleep()` to shared utility (duplicated in queue.ts and history.ts)
+- [x] Create `getMovieFileOrFail()` helper in RadarrService
+- [x] Extract common score comparison pattern to helper function
+- [x] Create `completeItem()` helper in QueueManager
 
 ### 0.4 Error Handling Standardization
 - [ ] Create `formatError(error: unknown)` utility function

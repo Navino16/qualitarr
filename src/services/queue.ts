@@ -3,11 +3,12 @@ import type { RadarrMovie, RadarrHistory } from "../types/radarr.js";
 import { RadarrService } from "./radarr.js";
 import { DiscordService } from "./discord.js";
 import {
-  calculateScoreComparison,
+  compareScores,
+  logScoreSummary,
   handleScoreResult,
   logDryRunResult,
 } from "./score.js";
-import { logger, findHistoryEvents } from "../utils/index.js";
+import { logger, findHistoryEvents, sleep } from "../utils/index.js";
 
 export interface QueueManagerOptions {
   dryRun?: boolean;
@@ -159,8 +160,7 @@ export class QueueManager {
       if (!grabbed) {
         logger.info(`[DRY-RUN]   No grabbed event found in history`);
         logger.info(`[DRY-RUN]   Would trigger search and wait for download`);
-        item.status = "completed";
-        this.completedItems.push(item);
+        this.completeItem(item);
         continue;
       }
 
@@ -168,8 +168,7 @@ export class QueueManager {
       if (!item.hasFile) {
         logger.info(`[DRY-RUN]   Movie has no file yet`);
         logger.info(`[DRY-RUN]   Would trigger search and wait for download`);
-        item.status = "completed";
-        this.completedItems.push(item);
+        this.completeItem(item);
         continue;
       }
 
@@ -177,17 +176,15 @@ export class QueueManager {
 
       if (!movieFile) {
         logger.info(`[DRY-RUN]   Could not get movie file info`);
-        item.status = "completed";
-        this.completedItems.push(item);
+        this.completeItem(item);
         continue;
       }
 
-      const comparison = calculateScoreComparison({
-        expectedScore: grabbed.customFormatScore,
-        actualScore: movieFile.customFormatScore,
-        maxOverScore: this.config.quality.maxOverScore,
-        maxUnderScore: this.config.quality.maxUnderScore,
-      });
+      const comparison = compareScores(
+        grabbed.customFormatScore,
+        movieFile.customFormatScore,
+        this.config.quality
+      );
 
       logger.info(`[DRY-RUN]   Grabbed score: ${comparison.expectedScore}`);
       logger.info(`[DRY-RUN]   Current file score: ${comparison.actualScore}`);
@@ -195,8 +192,7 @@ export class QueueManager {
 
       logDryRunResult(comparison, this.config.tag);
 
-      item.status = "completed";
-      this.completedItems.push(item);
+      this.completeItem(item);
     }
 
     this.searchQueue = [];
@@ -211,7 +207,7 @@ export class QueueManager {
         logger.debug(
           `Download queue full (${this.downloadQueue.length}/${this.batchConfig.maxConcurrentDownloads}), waiting...`
         );
-        await this.sleep(this.batchConfig.searchIntervalSeconds * 1000);
+        await sleep(this.batchConfig.searchIntervalSeconds * 1000);
         continue;
       }
 
@@ -221,10 +217,9 @@ export class QueueManager {
       try {
         await this.searchItem(item);
       } catch (error) {
-        item.status = "failed";
-        item.error = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to search ${item.title}: ${item.error}`);
-        this.completedItems.push(item);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to search ${item.title}: ${errorMsg}`);
+        this.failItem(item, errorMsg);
       }
 
       // Wait before next search
@@ -232,7 +227,7 @@ export class QueueManager {
         logger.debug(
           `Waiting ${this.batchConfig.searchIntervalSeconds}s before next search...`
         );
-        await this.sleep(this.batchConfig.searchIntervalSeconds * 1000);
+        await sleep(this.batchConfig.searchIntervalSeconds * 1000);
       }
     }
   }
@@ -259,7 +254,6 @@ export class QueueManager {
       if (!lastGrabbed) {
         // No grabbed event at all - consider OK
         logger.info(`No grab history for ${item.title}, marking as OK`);
-        item.status = "completed";
 
         if (this.config.tag.enabled) {
           const tag = await this.radarr.getOrCreateTag(
@@ -270,7 +264,7 @@ export class QueueManager {
           logger.info(`Applied success tag: ${this.config.tag.successTag}`);
         }
 
-        this.completedItems.push(item);
+        this.completeItem(item);
         return;
       }
 
@@ -279,22 +273,17 @@ export class QueueManager {
 
       if (!movieFile) {
         logger.warn(`No file found for ${item.title}`);
-        item.status = "failed";
-        item.error = "No movie file found";
-        this.completedItems.push(item);
+        this.failItem(item, "No movie file found");
         return;
       }
 
-      const comparison = calculateScoreComparison({
-        expectedScore: lastGrabbed.customFormatScore,
-        actualScore: movieFile.customFormatScore,
-        maxOverScore: this.config.quality.maxOverScore,
-        maxUnderScore: this.config.quality.maxUnderScore,
-      });
-
-      logger.info(
-        `${item.title}: Grabbed=${comparison.expectedScore}, Current=${comparison.actualScore}, Diff=${comparison.difference}`
+      const comparison = compareScores(
+        lastGrabbed.customFormatScore,
+        movieFile.customFormatScore,
+        this.config.quality
       );
+
+      logScoreSummary(item.title, comparison);
 
       await handleScoreResult(
         {
@@ -306,8 +295,7 @@ export class QueueManager {
         { radarr: this.radarr, discord: this.discord }
       );
 
-      item.status = "completed";
-      this.completedItems.push(item);
+      this.completeItem(item);
       return;
     }
 
@@ -340,7 +328,7 @@ export class QueueManager {
         return newEvent;
       }
 
-      await this.sleep(pollInterval);
+      await sleep(pollInterval);
     }
 
     return null;
@@ -359,24 +347,19 @@ export class QueueManager {
           if (importDetected) {
             await this.processCompletedDownload(item);
           } else if (this.isTimedOut(item, timeoutMs)) {
-            item.status = "failed";
-            item.error = "Download timed out";
             logger.warn(`Download timed out for ${item.title}`);
             this.removeFromDownloadQueue(item);
-            this.completedItems.push(item);
+            this.failItem(item, "Download timed out");
           }
         } catch (error) {
-          item.status = "failed";
-          item.error = error instanceof Error ? error.message : String(error);
-          logger.error(
-            `Error checking download for ${item.title}: ${item.error}`
-          );
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          logger.error(`Error checking download for ${item.title}: ${errorMsg}`);
           this.removeFromDownloadQueue(item);
-          this.completedItems.push(item);
+          this.failItem(item, errorMsg);
         }
       }
 
-      await this.sleep(this.batchConfig.downloadCheckIntervalSeconds * 1000);
+      await sleep(this.batchConfig.downloadCheckIntervalSeconds * 1000);
     }
   }
 
@@ -394,10 +377,8 @@ export class QueueManager {
     logger.info(`Download completed for ${item.title}, checking score...`);
 
     if (!item.grabbedEvent) {
-      item.status = "failed";
-      item.error = "Missing grabbed event";
       this.removeFromDownloadQueue(item);
-      this.completedItems.push(item);
+      this.failItem(item, "Missing grabbed event");
       return;
     }
 
@@ -405,23 +386,18 @@ export class QueueManager {
     const movieFile = await this.radarr.getMovieFile(item.id);
 
     if (!movieFile) {
-      item.status = "failed";
-      item.error = "Could not get movie file info after import";
       this.removeFromDownloadQueue(item);
-      this.completedItems.push(item);
+      this.failItem(item, "Could not get movie file info after import");
       return;
     }
 
-    const comparison = calculateScoreComparison({
-      expectedScore: item.grabbedEvent.customFormatScore,
-      actualScore: movieFile.customFormatScore,
-      maxOverScore: this.config.quality.maxOverScore,
-      maxUnderScore: this.config.quality.maxUnderScore,
-    });
-
-    logger.info(
-      `${item.title}: Grabbed=${comparison.expectedScore}, Current=${comparison.actualScore}, Diff=${comparison.difference}`
+    const comparison = compareScores(
+      item.grabbedEvent.customFormatScore,
+      movieFile.customFormatScore,
+      this.config.quality
     );
+
+    logScoreSummary(item.title, comparison);
 
     await handleScoreResult(
       {
@@ -433,9 +409,8 @@ export class QueueManager {
       { radarr: this.radarr, discord: this.discord }
     );
 
-    item.status = "completed";
     this.removeFromDownloadQueue(item);
-    this.completedItems.push(item);
+    this.completeItem(item);
   }
 
   private isTimedOut(item: QueueItem, timeoutMs: number): boolean {
@@ -463,7 +438,7 @@ export class QueueManager {
       logger.debug(
         `Waiting for ${this.downloadQueue.length} downloads to complete...`
       );
-      await this.sleep(5000);
+      await sleep(5000);
     }
   }
 
@@ -489,8 +464,21 @@ export class QueueManager {
     }
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  /**
+   * Mark an item as completed and add to completed items list
+   */
+  private completeItem(item: QueueItem): void {
+    item.status = "completed";
+    this.completedItems.push(item);
+  }
+
+  /**
+   * Mark an item as failed with an error message and add to completed items list
+   */
+  private failItem(item: QueueItem, error: string): void {
+    item.status = "failed";
+    item.error = error;
+    this.completedItems.push(item);
   }
 
   /**

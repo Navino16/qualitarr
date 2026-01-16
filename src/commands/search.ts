@@ -2,7 +2,7 @@ import type { Config } from "../types/index.js";
 import {
   RadarrService,
   DiscordService,
-  calculateScoreComparison,
+  compareScores,
   handleScoreResult,
   logScoreComparison,
   logDryRunResult,
@@ -93,12 +93,11 @@ async function handleDryRunMode(
     return null;
   }
 
-  const comparison = calculateScoreComparison({
-    expectedScore: grabbed.customFormatScore,
-    actualScore: movieFile.customFormatScore,
-    maxOverScore: config.quality.maxOverScore,
-    maxUnderScore: config.quality.maxUnderScore,
-  });
+  const comparison = compareScores(
+    grabbed.customFormatScore,
+    movieFile.customFormatScore,
+    config.quality
+  );
 
   logger.info(`[DRY-RUN] Grabbed score: ${comparison.expectedScore}`);
   logger.info(`[DRY-RUN] Current file score: ${comparison.actualScore}`);
@@ -175,12 +174,11 @@ async function handleRealMode(
       return null;
     }
 
-    const comparison = calculateScoreComparison({
-      expectedScore: lastGrabbed.customFormatScore,
-      actualScore: movieFile.customFormatScore,
-      maxOverScore: config.quality.maxOverScore,
-      maxUnderScore: config.quality.maxUnderScore,
-    });
+    const comparison = compareScores(
+      lastGrabbed.customFormatScore,
+      movieFile.customFormatScore,
+      config.quality
+    );
 
     logScoreComparison(comparison);
 
@@ -227,12 +225,11 @@ async function handleRealMode(
   logger.info(`Current file score: ${movieFile.customFormatScore}`);
 
   // Calculate comparison using grabbed score vs current file score
-  const comparison = calculateScoreComparison({
-    expectedScore: grabbed.customFormatScore,
-    actualScore: movieFile.customFormatScore,
-    maxOverScore: config.quality.maxOverScore,
-    maxUnderScore: config.quality.maxUnderScore,
-  });
+  const comparison = compareScores(
+    grabbed.customFormatScore,
+    movieFile.customFormatScore,
+    config.quality
+  );
 
   logScoreComparison(comparison);
 
