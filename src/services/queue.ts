@@ -8,7 +8,7 @@ import {
   handleScoreResult,
   logDryRunResult,
 } from "./score.js";
-import { logger, findHistoryEvents, sleep } from "../utils/index.js";
+import { logger, findHistoryEvents, sleep, formatError } from "../utils/index.js";
 
 export interface QueueManagerOptions {
   dryRun?: boolean;
@@ -217,7 +217,7 @@ export class QueueManager {
       try {
         await this.searchItem(item);
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+        const errorMsg = formatError(error);
         logger.error(`Failed to search ${item.title}: ${errorMsg}`);
         this.failItem(item, errorMsg);
       }
@@ -352,7 +352,7 @@ export class QueueManager {
             this.failItem(item, "Download timed out");
           }
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
+          const errorMsg = formatError(error);
           logger.error(`Error checking download for ${item.title}: ${errorMsg}`);
           this.removeFromDownloadQueue(item);
           this.failItem(item, errorMsg);

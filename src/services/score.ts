@@ -5,7 +5,7 @@ import type {
   ScoreResultContext,
   ScoreResultServices,
 } from "../types/score.js";
-import { logger } from "../utils/logger.js";
+import { logger, formatError } from "../utils/index.js";
 
 /**
  * Calculate score comparison between expected (grabbed) and actual (current file) scores
@@ -106,9 +106,7 @@ export async function handleScoreResult(
     } catch (error) {
       // Discord notification failure should not fail the entire operation
       logger.error(
-        `Failed to send Discord notification for ${movie.title}: ${
-          error instanceof Error ? error.message : String(error)
-        }`
+        `Failed to send Discord notification for ${movie.title}: ${formatError(error)}`
       );
     }
   }

@@ -19,7 +19,7 @@ import {
   radarrTagSchema,
   radarrCommandSchema,
 } from "../types/radarr.js";
-import { logger, sleep } from "../utils/index.js";
+import { logger, sleep, formatError } from "../utils/index.js";
 
 class RetryableError extends Error {
   constructor(
@@ -120,8 +120,7 @@ export class RadarrService {
           `Radarr API timeout after ${this.apiConfig.timeoutMs}ms (${endpoint})`
         );
       }
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Radarr API connection failed (${endpoint}): ${message}`);
+      throw new Error(`Radarr API connection failed (${endpoint}): ${formatError(error)}`);
     } finally {
       clearTimeout(timeoutId);
     }
