@@ -117,6 +117,35 @@ export async function handleScoreResult(
 }
 
 /**
+ * Compare scores using quality config thresholds.
+ * Convenience wrapper around calculateScoreComparison that extracts thresholds from config.
+ */
+export function compareScores(
+  expectedScore: number,
+  actualScore: number,
+  qualityConfig: QualityConfig
+): ScoreComparisonResult {
+  return calculateScoreComparison({
+    expectedScore,
+    actualScore,
+    maxOverScore: qualityConfig.maxOverScore,
+    maxUnderScore: qualityConfig.maxUnderScore,
+  });
+}
+
+/**
+ * Log a one-line score comparison summary
+ */
+export function logScoreSummary(
+  title: string,
+  comparison: ScoreComparisonResult
+): void {
+  logger.info(
+    `${title}: Grabbed=${comparison.expectedScore}, Current=${comparison.actualScore}, Diff=${comparison.difference}`
+  );
+}
+
+/**
  * Log score comparison results (for both dry-run and real modes)
  */
 export function logScoreComparison(
