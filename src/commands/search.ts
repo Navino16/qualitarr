@@ -135,7 +135,10 @@ async function handleRealMode(
   const grabbed = await waitForHistoryEvent(
     () => radarr.getHistory(movie.id),
     HISTORY_EVENT_TYPES.GRABBED,
-    { timeoutMs: 60000, pollIntervalMs: 5000 }
+    {
+      timeoutMs: config.batch.grabWaitTimeoutMs,
+      pollIntervalMs: config.batch.historyPollIntervalMs,
+    }
   );
 
   if (!grabbed) {
@@ -211,7 +214,10 @@ async function handleRealMode(
   await waitForHistoryEvent(
     () => radarr.getHistory(movie.id),
     HISTORY_EVENT_TYPES.IMPORTED,
-    { timeoutMs: 3600000, pollIntervalMs: 5000 } // 1 hour timeout
+    {
+      timeoutMs: config.batch.downloadTimeoutMinutes * 60 * 1000,
+      pollIntervalMs: config.batch.historyPollIntervalMs,
+    }
   );
 
   // Get current file score (actual score after import and potential renames)

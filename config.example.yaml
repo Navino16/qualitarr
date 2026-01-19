@@ -48,3 +48,8 @@ batch:
   downloadCheckIntervalSeconds: 10
   # Timeout for downloads (minutes)
   downloadTimeoutMinutes: 60
+  # Command and polling timeouts (advanced)
+  commandTimeoutMs: 60000         # Timeout for search commands (ms, default: 60000)
+  commandPollIntervalMs: 2000     # Polling interval for command status (ms, default: 2000)
+  grabWaitTimeoutMs: 30000        # Timeout waiting for grab event (ms, default: 30000)
+  historyPollIntervalMs: 3000     # Polling interval for history events (ms, default: 3000)

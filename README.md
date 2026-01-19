@@ -64,6 +64,11 @@ batch:
   searchIntervalSeconds: 30
   downloadCheckIntervalSeconds: 10
   downloadTimeoutMinutes: 60
+  # Advanced polling/timeout settings (optional)
+  commandTimeoutMs: 60000         # Search command timeout (ms)
+  commandPollIntervalMs: 2000     # Command status polling (ms)
+  grabWaitTimeoutMs: 30000        # Grab event timeout (ms)
+  historyPollIntervalMs: 3000     # History polling interval (ms)
 ```
 
 ## Usage

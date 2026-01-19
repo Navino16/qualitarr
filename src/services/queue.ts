@@ -237,10 +237,18 @@ export class QueueManager {
     item.status = "searching";
 
     const command = await this.radarr.searchMovie(item.id);
-    await this.radarr.waitForCommand(command.id, 60000); // 1 min timeout for search
+    await this.radarr.waitForCommand(
+      command.id,
+      this.batchConfig.commandTimeoutMs,
+      this.batchConfig.commandPollIntervalMs
+    );
 
     // Wait for grabbed event
-    const grabbed = await this.waitForNewHistoryEvent(item, "grabbed", 30000);
+    const grabbed = await this.waitForNewHistoryEvent(
+      item,
+      "grabbed",
+      this.batchConfig.grabWaitTimeoutMs
+    );
 
     if (!grabbed) {
       // No new grab - compare current file with last grabbed event from history
@@ -315,7 +323,6 @@ export class QueueManager {
     timeoutMs: number
   ): Promise<RadarrHistory | null> {
     const startTime = Date.now();
-    const pollInterval = 3000;
 
     while (Date.now() - startTime < timeoutMs) {
       const history = await this.radarr.getHistory(item.id);
@@ -328,7 +335,7 @@ export class QueueManager {
         return newEvent;
       }
 
-      await sleep(pollInterval);
+      await sleep(this.batchConfig.historyPollIntervalMs);
     }
 
     return null;
@@ -438,7 +445,7 @@ export class QueueManager {
       logger.debug(
         `Waiting for ${this.downloadQueue.length} downloads to complete...`
       );
-      await sleep(5000);
+      await sleep(this.batchConfig.downloadCheckIntervalSeconds * 1000);
     }
   }
 

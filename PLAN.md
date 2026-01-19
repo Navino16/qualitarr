@@ -27,11 +27,13 @@
 - [x] Add context to all error messages (movie title, endpoint, etc.)
 - [x] Standardize logging patterns across services
 
-### 0.5 Configuration Cleanup
-- [ ] Move magic numbers to config:
-  - `apiTimeoutMs` (currently hardcoded 30000, 60000, etc.)
-  - `commandPollIntervalMs` (currently hardcoded 2000, 3000)
-- [ ] Add config validation for timeout values
+### 0.5 Configuration Cleanup ✅
+- [x] Move magic numbers to config:
+  - `commandTimeoutMs` for search command timeout
+  - `commandPollIntervalMs` for command polling interval
+  - `grabWaitTimeoutMs` for grab event timeout
+  - `historyPollIntervalMs` for history polling interval
+- [x] Add config validation for timeout values (via Zod schema with min/max)
 
 ### 0.6 Test Coverage
 - [ ] Create `tests/services/radarr.test.ts` (target: 80%)
