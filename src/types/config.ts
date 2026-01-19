@@ -52,6 +52,11 @@ export const batchConfigSchema = z.object({
   searchIntervalSeconds: z.number().min(5).max(300).default(30),
   downloadCheckIntervalSeconds: z.number().min(5).max(60).default(10),
   downloadTimeoutMinutes: z.number().min(5).max(1440).default(60),
+  // Command and polling timeouts
+  commandTimeoutMs: z.number().min(10000).max(600000).default(60000),
+  commandPollIntervalMs: z.number().min(500).max(10000).default(2000),
+  grabWaitTimeoutMs: z.number().min(5000).max(120000).default(30000),
+  historyPollIntervalMs: z.number().min(1000).max(10000).default(3000),
 });
 
 export const configSchema = z
@@ -73,6 +78,10 @@ export const configSchema = z
       searchIntervalSeconds: 30,
       downloadCheckIntervalSeconds: 10,
       downloadTimeoutMinutes: 60,
+      commandTimeoutMs: 60000,
+      commandPollIntervalMs: 2000,
+      grabWaitTimeoutMs: 30000,
+      historyPollIntervalMs: 3000,
     }),
   })
   .refine((data) => data.radarr ?? data.sonarr, {

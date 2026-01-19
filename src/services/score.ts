@@ -5,7 +5,7 @@ import type {
   ScoreResultContext,
   ScoreResultServices,
 } from "../types/score.js";
-import { logger } from "../utils/logger.js";
+import { logger, formatError } from "../utils/index.js";
 
 /**
  * Calculate score comparison between expected (grabbed) and actual (current file) scores
@@ -106,14 +106,41 @@ export async function handleScoreResult(
     } catch (error) {
       // Discord notification failure should not fail the entire operation
       logger.error(
-        `Failed to send Discord notification for ${movie.title}: ${
-          error instanceof Error ? error.message : String(error)
-        }`
+        `Failed to send Discord notification for ${movie.title}: ${formatError(error)}`
       );
     }
   }
 
   return output;
+}
+
+/**
+ * Compare scores using quality config thresholds.
+ * Convenience wrapper around calculateScoreComparison that extracts thresholds from config.
+ */
+export function compareScores(
+  expectedScore: number,
+  actualScore: number,
+  qualityConfig: QualityConfig
+): ScoreComparisonResult {
+  return calculateScoreComparison({
+    expectedScore,
+    actualScore,
+    maxOverScore: qualityConfig.maxOverScore,
+    maxUnderScore: qualityConfig.maxUnderScore,
+  });
+}
+
+/**
+ * Log a one-line score comparison summary
+ */
+export function logScoreSummary(
+  title: string,
+  comparison: ScoreComparisonResult
+): void {
+  logger.info(
+    `${title}: Grabbed=${comparison.expectedScore}, Current=${comparison.actualScore}, Diff=${comparison.difference}`
+  );
 }
 
 /**

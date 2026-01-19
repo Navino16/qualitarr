@@ -1,5 +1,6 @@
 import type { RadarrHistory } from "../types/radarr.js";
 import type { HistoryEventPair } from "../types/score.js";
+import { sleep } from "./async.js";
 
 /**
  * Event types used in Radarr history
@@ -43,10 +44,6 @@ export interface WaitForHistoryEventOptions {
   timeoutMs?: number;
   pollIntervalMs?: number;
   initialEventIds?: Set<number>;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

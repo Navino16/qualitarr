@@ -7,6 +7,7 @@ import {
   setLogLevel,
   parseArrEnv,
   isImportEvent,
+  formatError,
 } from "./utils/index.js";
 import { searchCommand } from "./commands/search.js";
 import { batchCommand } from "./commands/batch.js";
@@ -148,10 +149,7 @@ async function main(): Promise<void> {
 
         process.exit(0);
       } catch (error) {
-        logger.error(
-          "Error:",
-          error instanceof Error ? error.message : String(error)
-        );
+        logger.error("Error:", formatError(error));
         process.exit(1);
       }
     }
@@ -190,10 +188,7 @@ async function main(): Promise<void> {
         process.exit(1);
     }
   } catch (error) {
-    logger.error(
-      "Error:",
-      error instanceof Error ? error.message : String(error)
-    );
+    logger.error("Error:", formatError(error));
     process.exit(1);
   }
 }
