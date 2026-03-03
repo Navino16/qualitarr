@@ -11,7 +11,7 @@ describe('getVersion', () => {
   it('should return the version from package.json', () => {
     const version = getVersion();
 
-    expect(version).toBe('0.1.0');
+    expect(version).toBe('0.2.0');
   });
 
   it('should return a consistent value on multiple calls', () => {
