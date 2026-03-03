@@ -15,6 +15,12 @@ export const radarrQualitySchema = z.object({
   }),
 });
 
+export const radarrImageSchema = z.object({
+  coverType: z.string(),
+  url: z.string().optional(),
+  remoteUrl: z.string().optional(),
+});
+
 export const radarrMovieSchema = z.object({
   id: z.number(),
   title: z.string(),
@@ -24,6 +30,7 @@ export const radarrMovieSchema = z.object({
   hasFile: z.boolean(),
   monitored: z.boolean(),
   tags: z.array(z.number()),
+  images: z.array(radarrImageSchema).optional(),
 });
 
 export const radarrQueueItemSchema = z.object({
@@ -76,6 +83,14 @@ export const radarrCommandSchema = z.object({
   ended: z.string().optional(),
 });
 
+export const radarrSystemStatusSchema = z.object({
+  version: z.string(),
+  startupPath: z.string().optional(),
+  appData: z.string().optional(),
+  osName: z.string().optional(),
+  urlBase: z.string().optional(),
+});
+
 export const radarrMovieFileSchema = z.object({
   id: z.number(),
   movieId: z.number(),
@@ -87,6 +102,8 @@ export const radarrMovieFileSchema = z.object({
 });
 
 // Types inferred from schemas
+export type RadarrSystemStatus = z.infer<typeof radarrSystemStatusSchema>;
+export type RadarrImage = z.infer<typeof radarrImageSchema>;
 export type RadarrQuality = z.infer<typeof radarrQualitySchema>;
 export type RadarrMovie = z.infer<typeof radarrMovieSchema>;
 export type RadarrQueueItem = z.infer<typeof radarrQueueItemSchema>;
