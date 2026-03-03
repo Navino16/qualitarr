@@ -29,7 +29,9 @@ export async function importCommand(
   const { grabbed } = findHistoryEvents(history);
 
   if (!grabbed) {
-    logger.warn(`[${envVars.movieTitle}] No grabbed event in history, skipping`);
+    logger.warn(
+      `[${envVars.movieTitle}] No grabbed event in history, skipping`
+    );
     return;
   }
 
@@ -54,14 +56,26 @@ export async function importCommand(
   logger.info(`Current file score: ${comparison.actualScore}`);
   logger.info(`Difference: ${comparison.difference}`);
 
+  // Extract indexer from grabbed event data
+  const indexer =
+    typeof grabbed.data["indexer"] === "string"
+      ? grabbed.data["indexer"]
+      : undefined;
+
   // Handle result (apply tag, send notification)
   await handleScoreResult(
     {
-      movie: { id: movie.id, title: movie.title, year: movie.year },
+      movie: {
+        id: movie.id,
+        title: movie.title,
+        year: movie.year,
+        images: movie.images,
+      },
       quality: movieFile.quality.quality.name,
       comparison,
+      indexer,
     },
     { tagConfig: config.tag, qualityConfig: config.quality },
-    { radarr, discord }
+    { radarr, discord, radarrUrl: config.radarr.url }
   );
 }

@@ -32,6 +32,26 @@ function log(level: LogLevel, message: string, data?: unknown): void {
   }
 }
 
+/**
+ * Create a log context prefix for structured logging
+ */
+export function createLogContext(
+  title: string,
+  year?: number,
+  correlationId?: string
+): string {
+  const parts: string[] = [];
+  if (year) {
+    parts.push(`${title} (${year})`);
+  } else {
+    parts.push(title);
+  }
+  if (correlationId) {
+    parts.push(`[${correlationId}]`);
+  }
+  return `[${parts.join(" ")}]`;
+}
+
 export const logger = {
   debug: (message: string, data?: unknown) => {
     log("debug", message, data);

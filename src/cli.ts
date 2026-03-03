@@ -8,10 +8,12 @@ import {
   parseArrEnv,
   isImportEvent,
   formatError,
+  getVersion,
 } from "./utils/index.js";
 import { searchCommand } from "./commands/search.js";
 import { batchCommand } from "./commands/batch.js";
 import { importCommand } from "./commands/import.js";
+import { healthCommand } from "./commands/health.js";
 
 const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
@@ -49,6 +51,11 @@ const { values, positionals } = parseArgs({
       default: false,
       description: "Show version",
     },
+    notify: {
+      type: "boolean",
+      default: false,
+      description: "Send test notification (health command)",
+    },
   },
   allowPositionals: true,
 });
@@ -64,6 +71,7 @@ Commands:
   (no command)         Auto-detect mode from Radarr/Sonarr environment variables
   batch                Process all movies without success tag (dual queue system)
   search <tmdb-id>     Search for a specific movie by TMDB ID and monitor quality
+  health               Check connectivity and display configuration summary
 
 Options:
   -c, --config <path>  Path to config file (default: ./config.yaml)
@@ -72,6 +80,7 @@ Options:
   -l, --limit <n>      Limit number of movies to process (batch mode)
   -h, --help           Show this help message
       --version        Show version
+      --notify         Send test notification (health command)
 
 Examples:
   # As Radarr/Sonarr Custom Script (auto-detect mode):
@@ -97,7 +106,7 @@ Radarr/Sonarr Custom Script Setup:
 }
 
 function showVersion(): void {
-  console.log("qualitarr v0.1.0");
+  console.log(`qualitarr v${getVersion()}`);
 }
 
 async function main(): Promise<void> {
@@ -179,6 +188,11 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await searchCommand(config, parseInt(tmdbId, 10), { dryRun });
+        break;
+      }
+
+      case "health": {
+        await healthCommand(config, { notify: values.notify });
         break;
       }
 
