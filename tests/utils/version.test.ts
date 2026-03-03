@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { getVersion } from '../../src/utils/version.js';
 
 describe('getVersion', () => {
@@ -8,10 +9,10 @@ describe('getVersion', () => {
     expect(version).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it('should return the version from package.json', () => {
-    const version = getVersion();
+  it('should match the version from package.json', () => {
+    const pkg = JSON.parse(readFileSync('package.json', 'utf-8')) as { version: string };
 
-    expect(version).toBe('0.1.0');
+    expect(getVersion()).toBe(pkg.version);
   });
 
   it('should return a consistent value on multiple calls', () => {
