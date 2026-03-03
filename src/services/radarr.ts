@@ -9,6 +9,8 @@ import type {
   RadarrHistory,
   RadarrTag,
   RadarrCommand,
+  RadarrSystemStatus,
+  IMediaService,
 } from "../types/index.js";
 import {
   radarrMovieSchema,
@@ -18,6 +20,7 @@ import {
   radarrHistorySchema,
   radarrTagSchema,
   radarrCommandSchema,
+  radarrSystemStatusSchema,
 } from "../types/radarr.js";
 import { logger, sleep, formatError } from "../utils/index.js";
 
@@ -31,7 +34,7 @@ class RetryableError extends Error {
   }
 }
 
-export class RadarrService {
+export class RadarrService implements IMediaService {
   private baseUrl: string;
   private apiKey: string;
   private apiConfig: ApiConfig;
@@ -120,7 +123,9 @@ export class RadarrService {
           `Radarr API timeout after ${this.apiConfig.timeoutMs}ms (${endpoint})`
         );
       }
-      throw new Error(`Radarr API connection failed (${endpoint}): ${formatError(error)}`);
+      throw new Error(
+        `Radarr API connection failed (${endpoint}): ${formatError(error)}`
+      );
     } finally {
       clearTimeout(timeoutId);
     }
@@ -212,6 +217,12 @@ export class RadarrService {
       searchParams.append(key, String(value));
     }
     return `${path}?${searchParams.toString()}`;
+  }
+
+  async getSystemStatus(): Promise<RadarrSystemStatus> {
+    const endpoint = "/system/status";
+    const data = await this.request<unknown>(endpoint);
+    return this.validateResponse(data, radarrSystemStatusSchema, endpoint);
   }
 
   async getMovies(): Promise<RadarrMovie[]> {

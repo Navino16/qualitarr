@@ -64,7 +64,19 @@ export async function searchCommand(
 
 async function handleDryRunMode(
   radarr: RadarrService,
-  movie: { id: number; title: string; year: number; hasFile: boolean },
+  movie: {
+    id: number;
+    title: string;
+    year: number;
+    hasFile: boolean;
+    images?:
+      | {
+          coverType: string;
+          url?: string | undefined;
+          remoteUrl?: string | undefined;
+        }[]
+      | undefined;
+  },
   config: Config
 ): Promise<SearchResult | null> {
   logger.info("[DRY-RUN] Would trigger search for this movie");
@@ -117,7 +129,19 @@ async function handleDryRunMode(
 async function handleRealMode(
   radarr: RadarrService,
   discord: DiscordService,
-  movie: { id: number; title: string; year: number; tags: number[] },
+  movie: {
+    id: number;
+    title: string;
+    year: number;
+    tags: number[];
+    images?:
+      | {
+          coverType: string;
+          url?: string | undefined;
+          remoteUrl?: string | undefined;
+        }[]
+      | undefined;
+  },
   config: Config
 ): Promise<SearchResult | null> {
   // Trigger search
@@ -185,14 +209,25 @@ async function handleRealMode(
 
     logScoreComparison(comparison);
 
+    const lastIndexer =
+      typeof lastGrabbed.data["indexer"] === "string"
+        ? lastGrabbed.data["indexer"]
+        : undefined;
+
     const resultOutput = await handleScoreResult(
       {
-        movie: { id: movie.id, title: movie.title, year: movie.year },
+        movie: {
+          id: movie.id,
+          title: movie.title,
+          year: movie.year,
+          images: movie.images,
+        },
         quality: movieFile.quality.quality.name,
         comparison,
+        indexer: lastIndexer,
       },
       { tagConfig: config.tag, qualityConfig: config.quality },
-      { radarr, discord }
+      { radarr, discord, radarrUrl: config.radarr?.url }
     );
 
     return {
@@ -240,14 +275,25 @@ async function handleRealMode(
   logScoreComparison(comparison);
 
   // Handle result
+  const grabbedIndexer =
+    typeof grabbed.data["indexer"] === "string"
+      ? grabbed.data["indexer"]
+      : undefined;
+
   const resultOutput = await handleScoreResult(
     {
-      movie: { id: movie.id, title: movie.title, year: movie.year },
+      movie: {
+        id: movie.id,
+        title: movie.title,
+        year: movie.year,
+        images: movie.images,
+      },
       quality: movieFile.quality.quality.name,
       comparison,
+      indexer: grabbedIndexer,
     },
     { tagConfig: config.tag, qualityConfig: config.quality },
-    { radarr, discord }
+    { radarr, discord, radarrUrl: config.radarr?.url }
   );
 
   return {

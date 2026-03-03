@@ -282,7 +282,141 @@ describe('handleScoreResult', () => {
       difference: -20,
       maxOverScore: 100,
       quality: 'Bluray-1080p',
+      indexer: undefined,
+      radarrUrl: undefined,
+      movieId: 1,
+      posterUrl: undefined,
     });
+  });
+
+  it('should pass indexer to Discord notification when provided', async () => {
+    const services = createMockServices();
+    const context: ScoreResultContext = {
+      movie: { id: 1, title: 'Test Movie', year: 2024 },
+      quality: 'Bluray-1080p',
+      comparison: createMismatchComparison(),
+      indexer: 'NZBgeek',
+    };
+
+    await handleScoreResult(
+      context,
+      { tagConfig: mockTagConfig, qualityConfig: mockQualityConfig },
+      services
+    );
+
+    expect(services.discord.sendScoreMismatch).toHaveBeenCalledWith(
+      expect.objectContaining({ indexer: 'NZBgeek' })
+    );
+  });
+
+  it('should pass radarrUrl and movieId to Discord notification when provided', async () => {
+    const services: ScoreResultServices = {
+      ...createMockServices(),
+      radarrUrl: 'http://radarr:7878',
+    };
+    const context: ScoreResultContext = {
+      movie: { id: 42, title: 'Test Movie', year: 2024 },
+      quality: 'Bluray-1080p',
+      comparison: createMismatchComparison(),
+    };
+
+    await handleScoreResult(
+      context,
+      { tagConfig: mockTagConfig, qualityConfig: mockQualityConfig },
+      services
+    );
+
+    expect(services.discord.sendScoreMismatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        radarrUrl: 'http://radarr:7878',
+        movieId: 42,
+      })
+    );
+  });
+
+  it('should extract poster URL from movie images when available', async () => {
+    const services = createMockServices();
+    const context: ScoreResultContext = {
+      movie: {
+        id: 1,
+        title: 'Test Movie',
+        year: 2024,
+        images: [
+          { coverType: 'fanart', remoteUrl: 'https://img.tmdb.org/fanart.jpg' },
+          { coverType: 'poster', remoteUrl: 'https://img.tmdb.org/poster.jpg' },
+        ],
+      },
+      quality: 'Bluray-1080p',
+      comparison: createMismatchComparison(),
+    };
+
+    await handleScoreResult(
+      context,
+      { tagConfig: mockTagConfig, qualityConfig: mockQualityConfig },
+      services
+    );
+
+    expect(services.discord.sendScoreMismatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        posterUrl: 'https://img.tmdb.org/poster.jpg',
+      })
+    );
+  });
+
+  it('should fall back to url when remoteUrl is not available for poster', async () => {
+    const services = createMockServices();
+    const context: ScoreResultContext = {
+      movie: {
+        id: 1,
+        title: 'Test Movie',
+        year: 2024,
+        images: [
+          { coverType: 'poster', url: '/MediaCover/poster.jpg' },
+        ],
+      },
+      quality: 'Bluray-1080p',
+      comparison: createMismatchComparison(),
+    };
+
+    await handleScoreResult(
+      context,
+      { tagConfig: mockTagConfig, qualityConfig: mockQualityConfig },
+      services
+    );
+
+    expect(services.discord.sendScoreMismatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        posterUrl: '/MediaCover/poster.jpg',
+      })
+    );
+  });
+
+  it('should pass undefined posterUrl when no poster image exists', async () => {
+    const services = createMockServices();
+    const context: ScoreResultContext = {
+      movie: {
+        id: 1,
+        title: 'Test Movie',
+        year: 2024,
+        images: [
+          { coverType: 'fanart', remoteUrl: 'https://img.tmdb.org/fanart.jpg' },
+        ],
+      },
+      quality: 'Bluray-1080p',
+      comparison: createMismatchComparison(),
+    };
+
+    await handleScoreResult(
+      context,
+      { tagConfig: mockTagConfig, qualityConfig: mockQualityConfig },
+      services
+    );
+
+    expect(services.discord.sendScoreMismatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        posterUrl: undefined,
+      })
+    );
   });
 
   it('should not apply tag when tagging is disabled', async () => {

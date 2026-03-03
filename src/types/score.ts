@@ -1,4 +1,4 @@
-import type { RadarrHistory } from "./radarr.js";
+import type { RadarrHistory, RadarrImage } from "./radarr.js";
 
 /**
  * Input for score comparison calculation
@@ -29,6 +29,7 @@ export interface MovieInfo {
   id: number;
   title: string;
   year: number;
+  images?: RadarrImage[] | undefined;
 }
 
 /**
@@ -38,6 +39,7 @@ export interface ScoreResultContext {
   movie: MovieInfo;
   quality: string;
   comparison: ScoreComparisonResult;
+  indexer?: string | undefined;
 }
 
 /**
@@ -57,14 +59,19 @@ export interface ScoreResultServices {
   discord: {
     sendScoreMismatch(info: {
       title: string;
-      year?: number;
+      year?: number | undefined;
       expectedScore: number;
       actualScore: number;
       difference: number;
       maxOverScore: number;
       quality: string;
+      indexer?: string | undefined;
+      radarrUrl?: string | undefined;
+      movieId?: number | undefined;
+      posterUrl?: string | undefined;
     }): Promise<void>;
   };
+  radarrUrl?: string | undefined;
 }
 
 /**

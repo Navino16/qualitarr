@@ -35,24 +35,33 @@
   - `historyPollIntervalMs` for history polling interval
 - [x] Add config validation for timeout values (via Zod schema with min/max)
 
-### 0.6 Test Coverage
-- [ ] Create `tests/services/radarr.test.ts` (target: 80%)
-- [ ] Create `tests/services/queue.test.ts` (target: 70%)
-- [ ] Create `tests/services/discord.test.ts` (target: 80%)
-- [ ] Create `tests/utils/config.test.ts` (target: 90%)
-- [ ] Add coverage threshold check in CI (fail if < 70%)
+### 0.6 Test Coverage ✅
+- [x] Create `tests/services/radarr.test.ts` (50 tests, 97% coverage)
+- [x] Create `tests/services/queue.test.ts` (20 tests, 94% coverage)
+- [x] Create `tests/services/discord.test.ts` (30 tests, 97% coverage)
+- [x] Create `tests/utils/config.test.ts` (21 tests, 100% coverage)
+- [x] Add coverage threshold check in CI (global: 70% lines/functions/statements, 65% branches)
 
-### 0.7 Architecture Refactoring
-- [ ] Split QueueManager (479 lines) into:
-  - `QueueManager` - orchestrator only (~150 lines)
-  - `ItemProcessor` - single item handling
-  - `DownloadMonitor` - background download tracking
-- [ ] Create `IMediaService` interface (shared Radarr/Sonarr contract)
-- [ ] Create `INotificationService` interface
+### 0.7 Architecture Refactoring ✅
+- [x] Split QueueManager into:
+  - `QueueManager` - orchestrator only
+  - `ItemProcessor` (`src/services/item-processor.ts`) - single item handling
+  - `DownloadMonitor` (`src/services/download-monitor.ts`) - background download tracking
+- [x] Create `IMediaService` interface (`src/types/services.ts`)
+- [x] Create `INotificationService` interface (`src/types/services.ts`)
+- [x] `RadarrService implements IMediaService`, `DiscordService implements INotificationService`
 
-### 0.8 Observability
-- [ ] Add correlation IDs for async operation tracing
-- [ ] Add structured logging with context (movie title, indexer, etc.)
+### 0.8 Observability ✅
+- [x] Add correlation IDs (`correlationId` on `QueueItem`, generated via `randomUUID`)
+- [x] Add `createLogContext(title, year?, correlationId?)` in `src/utils/logger.ts`
+- [x] Use structured log context in `QueueManager`, `ItemProcessor`, `DownloadMonitor`
+
+---
+
+### 0.9 Quality of Life ✅
+- [x] Dynamic version read from `package.json` (replaces hardcoded version)
+- [x] `qualitarr health` command (connectivity check, config summary, `--notify` option)
+- [x] CHANGELOG.md (Keep a Changelog format)
 
 ---
 
@@ -82,10 +91,12 @@
 - [ ] Gotify/ntfy support
 - [ ] Apprise support (multi-channel)
 
-### 2.2 Enriched Notifications
-- [ ] Include indexer info in notification
-- [ ] Direct link to media in Radarr/Sonarr
-- [ ] Grouped notification (batch summary)
+### 2.2 Enriched Notifications ✅
+- [x] Include indexer info in notification
+- [x] Direct link to media in Radarr/Sonarr
+- [x] Poster thumbnail in Discord embed
+- [x] Dynamic version in embed footer
+- [x] Grouped notification (batch summary)
 
 ---
 

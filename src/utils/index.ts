@@ -4,3 +4,4 @@ export * from "./error.js";
 export * from "./logger.js";
 export * from "./env.js";
 export * from "./history.js";
+export * from "./version.js";

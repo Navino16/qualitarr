@@ -93,6 +93,11 @@ export async function handleScoreResult(
     }
 
     try {
+      const posterImage = movie.images?.find(
+        (img) => img.coverType === "poster"
+      );
+      const posterUrl = posterImage?.remoteUrl ?? posterImage?.url;
+
       await discord.sendScoreMismatch({
         title: movie.title,
         year: movie.year,
@@ -101,6 +106,10 @@ export async function handleScoreResult(
         difference: comparison.difference,
         maxOverScore: qualityConfig.maxOverScore,
         quality,
+        indexer: context.indexer,
+        radarrUrl: services.radarrUrl,
+        movieId: movie.id,
+        posterUrl,
       });
       output.notificationSent = true;
     } catch (error) {
