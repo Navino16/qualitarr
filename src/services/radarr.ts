@@ -120,11 +120,13 @@ export class RadarrService implements IMediaService {
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         throw new Error(
-          `Radarr API timeout after ${this.apiConfig.timeoutMs}ms (${endpoint})`
+          `Radarr API timeout after ${this.apiConfig.timeoutMs}ms (${endpoint})`,
+          { cause: error }
         );
       }
       throw new Error(
-        `Radarr API connection failed (${endpoint}): ${formatError(error)}`
+        `Radarr API connection failed (${endpoint}): ${formatError(error)}`,
+        { cause: error }
       );
     } finally {
       clearTimeout(timeoutId);
