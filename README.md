@@ -1,8 +1,34 @@
-# Qualitarr
+<p align="center">
+  <h1 align="center">Qualitarr</h1>
+</p>
 
-Monitor and compare expected vs actual quality scores for Radarr/Sonarr downloads.
+<p align="center">
+  Monitor and compare expected vs actual quality scores for Radarr/Sonarr downloads.<br/>
+  Detects custom format score mismatches between grabbed and imported files.
+</p>
 
-Qualitarr helps you ensure that the files grabbed by Radarr/Sonarr match the expected custom format scores. When a mismatch is detected, it applies a tag and sends a Discord notification.
+<p align="center">
+  <a href="https://github.com/Navino16/qualitarr/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/Navino16/qualitarr/release.yml?label=CI&style=flat-square" alt="CI"></a>
+  <a href="https://github.com/Navino16/qualitarr/actions/workflows/develop.yml"><img src="https://img.shields.io/github/actions/workflow/status/Navino16/qualitarr/develop.yml?label=Build&style=flat-square&logo=docker" alt="Build"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Navino16/qualitarr/pkgs/container/qualitarr"><img src="https://img.shields.io/badge/ghcr.io-qualitarr-blue?style=flat-square&logo=docker" alt="Docker"></a>
+  <a href="https://discord.gg/XgCBF3sMSh"><img src="https://img.shields.io/discord/1483405134003175607?style=flat-square&logo=discord&label=Discord" alt="Discord"></a>
+  <a href="https://github.com/Navino16/qualitarr"><img src="https://img.shields.io/github/stars/Navino16/qualitarr?style=flat-square" alt="Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Navino16/qualitarr?style=flat-square" alt="License"></a>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> &bull;
+  <a href="#getting-started">Getting Started</a> &bull;
+  <a href="#configuration">Configuration</a> &bull;
+  <a href="#usage">Usage</a> &bull;
+  <a href="#how-it-works">How It Works</a> &bull;
+  <a href="#development">Development</a>
+</p>
+
+---
 
 ## Features
 
@@ -12,64 +38,137 @@ Qualitarr helps you ensure that the files grabbed by Radarr/Sonarr match the exp
 - **Tagging**: Automatically tag movies based on score match/mismatch
 - **Discord notifications**: Get notified when score mismatches are detected
 - **Configurable tolerance**: Score is acceptable if actual is between (expected - maxUnderScore) and (expected + maxOverScore)
+- **Dry-run mode**: Test without making any changes
 
-## Installation
+## Getting Started
+
+### Docker
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/qualitarr.git
-cd qualitarr
-
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Copy and edit configuration
-cp config.example.yaml config.yaml
+docker run --rm -v "/path/to/config:/app/config" ghcr.io/navino16/qualitarr:latest
 ```
+
+Edit `./config/config.yaml`, then schedule periodic runs or use as a Radarr custom script.
+
+### Linux / macOS
+
+1. Download the [latest release](https://github.com/Navino16/qualitarr/releases/latest) for your platform
+2. Make the binary executable and run it:
+    ```bash
+    chmod +x qualitarr-linux-amd64
+    ./qualitarr-linux-amd64
+    ```
+3. Edit `./config.yaml` and run again
+
+### Windows
+
+1. Download the [latest release](https://github.com/Navino16/qualitarr/releases/latest) for Windows
+2. Run the binary from the command line
+3. Edit `./config.yaml` and run again
 
 ## Configuration
 
+### Configuration File
+
+Copy `config.example.yaml` to `config.yaml` and edit it:
+
+```bash
+cp config.example.yaml config.yaml
+```
+
+<details>
+<summary><strong>Radarr</strong> — Radarr connection settings</summary>
+
+| Name | Description | Mandatory | Default |
+|------|-------------|-----------|---------|
+| `radarr.url` | Radarr base URL | Yes | |
+| `radarr.apiKey` | Radarr API key | Yes | |
+| `radarr.api.timeoutMs` | Request timeout (ms) | No | 30000 |
+| `radarr.api.retryAttempts` | Retry attempts on failure | No | 3 |
+| `radarr.api.retryDelayMs` | Initial retry delay (ms) | No | 1000 |
+
+</details>
+
+<details>
+<summary><strong>Discord</strong> — Webhook notifications</summary>
+
+| Name | Description | Mandatory | Default |
+|------|-------------|-----------|---------|
+| `discord.enabled` | Enable Discord notifications | Yes | true |
+| `discord.webhookUrl` | Discord webhook URL | Yes | |
+
+</details>
+
+<details>
+<summary><strong>Tag</strong> — Tagging settings</summary>
+
+| Name | Description | Mandatory | Default |
+|------|-------------|-----------|---------|
+| `tag.enabled` | Enable automatic tagging | Yes | true |
+| `tag.successTag` | Tag applied when score matches | No | check_ok |
+| `tag.mismatchTag` | Tag applied when score differs | No | quality-mismatch |
+
+</details>
+
+<details>
+<summary><strong>Quality</strong> — Score tolerance</summary>
+
+| Name | Description | Mandatory | Default |
+|------|-------------|-----------|---------|
+| `quality.maxOverScore` | Max allowed above expected | No | 100 |
+| `quality.maxUnderScore` | Max allowed below expected (0 = must be >= expected) | No | 0 |
+
+</details>
+
+<details>
+<summary><strong>Batch</strong> — Batch mode settings</summary>
+
+| Name | Description | Mandatory | Default |
+|------|-------------|-----------|---------|
+| `batch.maxConcurrentDownloads` | Max concurrent downloads | No | 3 |
+| `batch.searchIntervalSeconds` | Delay between searches (s) | No | 30 |
+| `batch.downloadCheckIntervalSeconds` | Download progress check interval (s) | No | 10 |
+| `batch.downloadTimeoutMinutes` | Download timeout (min) | No | 60 |
+| `batch.commandTimeoutMs` | Search command timeout (ms) | No | 60000 |
+| `batch.commandPollIntervalMs` | Command status polling (ms) | No | 2000 |
+| `batch.grabWaitTimeoutMs` | Grab event timeout (ms) | No | 30000 |
+| `batch.historyPollIntervalMs` | History polling interval (ms) | No | 3000 |
+
+</details>
+
+<details>
+<summary><strong>Example configuration</strong></summary>
+
 ```yaml
-# Radarr configuration
 radarr:
   url: "http://localhost:7878"
   apiKey: "your-radarr-api-key"
-  api:  # Optional API settings
-    timeoutMs: 30000      # Request timeout (default: 30000)
-    retryAttempts: 3      # Retry on failure (default: 3)
-    retryDelayMs: 1000    # Initial retry delay (default: 1000)
+  api:
+    timeoutMs: 30000
+    retryAttempts: 3
+    retryDelayMs: 1000
 
-# Discord webhook notifications
 discord:
   enabled: true
-  webhookUrl: "https://discord.com/api/webhooks/..."
+  webhookUrl: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
 
-# Tag settings
 tag:
   enabled: true
-  successTag: "check_ok"           # Applied when score matches
-  mismatchTag: "quality-mismatch"  # Applied when score differs
+  successTag: "check_ok"
+  mismatchTag: "quality-mismatch"
 
-# Quality settings
 quality:
-  maxOverScore: 100   # Max allowed above expected
-  maxUnderScore: 0    # Max allowed below expected (0 = must be >= expected)
+  maxOverScore: 100
+  maxUnderScore: 0
 
-# Batch mode settings
 batch:
   maxConcurrentDownloads: 3
   searchIntervalSeconds: 30
   downloadCheckIntervalSeconds: 10
   downloadTimeoutMinutes: 60
-  # Advanced polling/timeout settings (optional)
-  commandTimeoutMs: 60000         # Search command timeout (ms)
-  commandPollIntervalMs: 2000     # Command status polling (ms)
-  grabWaitTimeoutMs: 30000        # Grab event timeout (ms)
-  historyPollIntervalMs: 3000     # History polling interval (ms)
 ```
+
+</details>
 
 ## Usage
 
@@ -112,7 +211,7 @@ Search for a specific movie by TMDB ID (visible in the Radarr URL):
 qualitarr search 550
 ```
 
-## CLI Options
+### CLI Options
 
 ```
 Usage:
@@ -143,10 +242,14 @@ A score is considered **acceptable** if the actual score is between `expected - 
 4. **Compare scores**: Compare grabbed score vs current file score
 5. **Take action**: Apply tags and send Discord notifications based on the result
 
-## Requirements
+## Troubleshooting
 
-- Node.js >= 20.0.0
-- Radarr v3+ (Sonarr support coming soon)
+| Problem | Solution |
+|---------|----------|
+| "Request timeout" | Increase `radarr.api.timeoutMs` in configuration |
+| "API key invalid" | Verify your Radarr API key in Settings > General |
+| "No grab history found" | The movie may have been manually imported. Run a search to create grab history |
+| "Score mismatch on all movies" | Review your `quality.maxOverScore` and `quality.maxUnderScore` settings |
 
 ## Development
 
@@ -163,9 +266,6 @@ npm run dev
 # Run tests
 npm test
 
-# Run tests once
-npm run test:run
-
 # Run tests with coverage
 npm run test:coverage
 
@@ -176,6 +276,11 @@ npm run lint
 npm run format
 ```
 
+## Requirements
+
+- Node.js >= 20.0.0
+- Radarr v3+ (Sonarr support coming soon)
+
 ## License
 
-MIT
+[MIT License](LICENSE)
