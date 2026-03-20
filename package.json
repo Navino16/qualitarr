@@ -11,7 +11,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/cli.js",
-    "package": "pkg . && mv bin/qualitarr-linux-x64 bin/qualitarr-linux-amd64",
+    "package": "pkg --no-bytecode . && mv bin/qualitarr-linux-x64 bin/qualitarr-linux-amd64",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -21,10 +21,10 @@
   },
   "pkg": {
     "targets": [
-      "node22-linux-x64",
-      "node22-linux-arm64",
-      "node22-macos-x64",
-      "node22-win-x64"
+      "node24-linux-x64",
+      "node24-linux-arm64",
+      "node24-macos-x64",
+      "node24-win-x64"
     ],
     "outputPath": "bin",
     "assets": []
