@@ -1,6 +1,6 @@
 {
   "name": "qualitarr",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Monitor and compare expected vs actual quality scores for Radarr/Sonarr downloads",
   "type": "module",
   "main": "dist/index.js",

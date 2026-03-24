@@ -94,7 +94,7 @@ jobs:
       - name: Smoke test binary
         run: |
           cd $(mktemp -d)
-          "$GITHUB_WORKSPACE/bin/qualitarr-linux-amd64"
+          "$GITHUB_WORKSPACE/bin/qualitarr-linux-amd64" --help
 
       - name: Upload binaries artifact
         uses: actions/upload-artifact@v7
