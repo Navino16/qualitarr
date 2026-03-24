@@ -18,7 +18,7 @@ qualitarr/
 │   ├── services/
 │   └── utils/
 ├── .github/workflows/      # CI/CD GitHub Actions
-├── Dockerfile              # Multi-stage build Node 22 Alpine
+├── Dockerfile              # Multi-stage build Node 24 Alpine
 ├── vitest.config.ts        # Test configuration
 └── config.example.yaml     # Configuration example
 ```

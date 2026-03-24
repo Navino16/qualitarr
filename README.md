@@ -8,8 +8,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Navino16/qualitarr/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/Navino16/qualitarr/release.yml?label=CI&style=flat-square" alt="CI"></a>
-  <a href="https://github.com/Navino16/qualitarr/actions/workflows/develop.yml"><img src="https://img.shields.io/github/actions/workflow/status/Navino16/qualitarr/develop.yml?label=Build&style=flat-square&logo=docker" alt="Build"></a>
+  <a href="https://github.com/Navino16/qualitarr/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Navino16/qualitarr/ci.yml?label=CI&style=flat-square" alt="CI"></a>
+  <a href="https://github.com/Navino16/qualitarr/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/Navino16/qualitarr/build.yml?label=Build&style=flat-square&logo=docker" alt="Build"></a>
 </p>
 
 <p align="center">
